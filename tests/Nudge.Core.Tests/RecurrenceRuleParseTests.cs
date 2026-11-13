@@ -44,6 +44,10 @@ public class RecurrenceRuleParseTests
     [InlineData("FREQ=YEARLY;BYMONTHDAY=15")]
     [InlineData("FREQ=DAILY;UNTIL=tomorrow")]
     [InlineData("FREQ=DAILY;UNTIL=20270231")]
+    [InlineData("FREQ=DAILY;UNTIL=20270131T996199Z")]
+    [InlineData("FREQ=DAILY;UNTIL=20270131X235959Z")]
+    [InlineData("FREQ=YEARLY;INTERVAL=401")]
+    [InlineData("FREQ=MONTHLY;INTERVAL=4801")]
     [InlineData("FREQ")]
     public void Parse_RejectsMalformedOrUnsupportedRules(string text)
     {

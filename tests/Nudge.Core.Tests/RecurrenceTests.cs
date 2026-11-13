@@ -117,6 +117,29 @@ public class RecurrenceTests
     }
 
     [Fact]
+    public void AfterCompletion_AppliesOnlyTheWrittenByParts()
+    {
+        var rule = AfterCompletion("FREQ=MONTHLY;BYMONTH=3");
+
+        // One month after 15 January is 15 February; the first day
+        // in March from there is the 1st, not the 15th.
+        var next = rule.NextAfterCompletion(
+            Day(2027, 1, 1),
+            Day(2027, 1, 15));
+
+        Assert.Equal(Day(2027, 3, 1), next);
+    }
+
+    [Fact]
+    public void Yearly_LongestAllowedInterval_StillFindsNext()
+    {
+        var rule = RecurrenceRule.Parse("FREQ=YEARLY;INTERVAL=400");
+        var anchor = Day(2026, 1, 1);
+
+        Assert.Equal(Day(2426, 1, 1), rule.NextAfter(anchor, anchor));
+    }
+
+    [Fact]
     public void MonthlyOnThe31st_FallsOnLastDayOfShortMonths()
     {
         var rule = RecurrenceRule.Parse("FREQ=MONTHLY");

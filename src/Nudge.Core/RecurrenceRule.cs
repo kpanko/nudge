@@ -138,6 +138,21 @@ public sealed class RecurrenceRule
             throw new FormatException("Recurrence rule has no FREQ.");
         }
 
+        // An interval longer than the search window would make an
+        // endless series look as if it had ended.
+        var maxInterval = freq switch
+        {
+            Frequency.Daily => SearchLimitDays,
+            Frequency.Weekly => SearchLimitDays / 7,
+            Frequency.Monthly => 400 * 12,
+            _ => 400,
+        };
+        if (interval > maxInterval)
+        {
+            throw new FormatException(
+                $"INTERVAL={interval} is longer than 400 years.");
+        }
+
         var monthBased =
             freq is Frequency.Monthly or Frequency.Yearly;
         if (!monthBased && byDay.Any(d => d.Ordinal != 0))
@@ -190,8 +205,8 @@ public sealed class RecurrenceRule
     }
 
     /// <summary>First occurrence strictly after
-    /// <paramref name="after"/>, or null if the series has ended.
-    /// </summary>
+    /// <paramref name="after"/>, or null if the series has ended or
+    /// has no occurrence in the next 400 years.</summary>
     public DateOnly? NextAfter(
         DateOnly anchor,
         DateOnly after)
@@ -205,8 +220,8 @@ public sealed class RecurrenceRule
     }
 
     /// <summary>First occurrence on or after
-    /// <paramref name="from"/>, or null if the series has ended.
-    /// </summary>
+    /// <paramref name="from"/>, or null if the series has ended or
+    /// has no occurrence in the next 400 years.</summary>
     public DateOnly? NextOnOrAfter(
         DateOnly anchor,
         DateOnly from)
@@ -218,7 +233,9 @@ public sealed class RecurrenceRule
     /// <summary>
     /// First day that is at least one interval after
     /// <paramref name="completedOn"/> and satisfies the BY parts.
-    /// With no BY parts this is exactly one interval later.
+    /// With no BY parts this is exactly one interval later. Only
+    /// the BY parts written in the rule apply; nothing is taken
+    /// from a start date.
     /// </summary>
     public DateOnly? NextCountedFrom(DateOnly completedOn)
     {
@@ -244,7 +261,7 @@ public sealed class RecurrenceRule
         return FirstMatch(
             earliest,
             date => date <= (Until ?? DateOnly.MaxValue)
-                && MatchesFilters(earliest, date));
+                && MatchesExplicitFilters(date));
     }
 
     /// <summary>The rule in canonical RRULE form.</summary>
@@ -352,6 +369,16 @@ public sealed class RecurrenceRule
         return MatchesMonth(anchor, date)
             && MatchesMonthDay(anchor, date)
             && MatchesWeekday(anchor, date);
+    }
+
+    private bool MatchesExplicitFilters(DateOnly date)
+    {
+        var daysInMonth = DateTime.DaysInMonth(date.Year, date.Month);
+        return (ByMonth.Count == 0 || ByMonth.Contains(date.Month))
+            && (ByMonthDay.Count == 0
+                || ByMonthDay.Any(
+                    d => date.Day == ClampDay(d, daysInMonth)))
+            && (ByDay.Count == 0 || ByDay.Any(d => d.Matches(date)));
     }
 
     private bool MatchesMonth(
@@ -494,13 +521,16 @@ public sealed class RecurrenceRule
     private static DateOnly ParseUntil(string value)
     {
         // Either a date (20270131) or a date-time (20270131T235959Z);
-        // only the date is used.
-        var shapeOk = value.Length == 8
-            || (value.Length is 15 or 16 && value[8] == 'T');
-        if (!shapeOk
-            || !DateOnly.TryParseExact(
-                value[..8],
-                "yyyyMMdd",
+        // the whole value must be valid but only the date is used.
+        string[] formats =
+        [
+            "yyyyMMdd",
+            "yyyyMMdd'T'HHmmss",
+            "yyyyMMdd'T'HHmmss'Z'",
+        ];
+        if (!DateTime.TryParseExact(
+                value,
+                formats,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out var until))
@@ -509,7 +539,7 @@ public sealed class RecurrenceRule
                 $"UNTIL={value} is not a valid value.");
         }
 
-        return until;
+        return DateOnly.FromDateTime(until);
     }
 
     private static string FormatWeekday(WeekdayRule rule)
