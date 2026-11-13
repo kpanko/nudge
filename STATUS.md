@@ -1,12 +1,16 @@
 # Status
 
-**Last updated:** 2026-11-12
+**Last updated:** 2026-11-13
 **Current milestone:** M1 Core, recurrence, REST API
 
 ## In Progress
-- M1. Recurrence engine is merged (PR #1); entities are next.
+- M1. Recurrence engine (PR #1) is merged; entities are in review
+  on branch `m1-entities`. Persistence is next.
 
 ## Recently Completed
+- Entities in `Nudge.Core`: `Item`, `Project` (nested), `Context`,
+  `Reminder`, with `ItemState` and `Priority`. Both named
+  regression tests now exist at item level in `ItemTests`.
 - Recurrence engine in `Nudge.Core`: `RecurrenceRule` (RRULE
   subset), `Recurrence` (fixed-schedule and after-completion),
   `LocalTimeResolver` (DST), with unit and CsCheck property tests.
@@ -16,16 +20,21 @@
 
 ## Next Up
 1. Rehearse a restore from the Litestream backup.
-2. M1 entities: item, project (nested), context, reminder. An item
-   must keep the rule's occurrence day apart from its due date.
-3. The named regression test "setting a due date keeps the repeat
-   rule" needs the item entity; "complete once advances once"
-   exists at engine level and should be repeated at item level.
+2. M1 persistence: EF Core + SQLite mappings and migrations for the
+   entities. They have no parameterless constructors and expose
+   read-only collections, so the mappings need constructor binding
+   or private constructors, and backing-field access.
+3. Change log, soft delete, undo.
 
 ## Blockers / Open Questions
 - None.
 
 ## Key Context
+- The first three M1 acceptance criteria hold in the domain and are
+  tested there. They stay unchecked until they are also proven
+  through persistence and the API.
+- Entities have no soft-delete or timestamp fields yet; those come
+  with the change log task.
 - No GitHub issues or labels exist yet (`/setup-github` has not
   been run); PR #1 closed no issue.
 - CodeRabbit reviews pull requests when triggered. Its findings on

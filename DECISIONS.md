@@ -142,3 +142,71 @@ separately from its due date. Daylight-saving changes cannot move
 an item to another day.
 
 ---
+
+## 2026-11-13 An item keeps its due date apart from its repeat rule
+
+**Context:** In Todoist, changing a due date could silently drop the
+repeat rule. The two named M1 regression tests guard against this.
+
+**Decision:** `Item` holds `DueDate`/`DueTime`, a `Recurrence` and an
+`OccurrenceDate` (the day the rule placed the current occurrence
+on). `SetDue` touches only the due date and time. The rule changes
+only through `Repeat` and `StopRepeating`. `Complete` advances from
+`OccurrenceDate` and leaves a repeating item open; it finishes the
+item only when it does not repeat or the series has ended.
+`ClearDue` is refused on a repeating item. Completing an item that
+is already finished throws.
+
+**Alternatives considered:** One "set due" call taking an optional
+rule (the Todoist shape; omitting the rule is how rules got lost).
+Letting a repeating item have no due date (nothing to show or
+remind on).
+
+**Consequences:** The API needs separate operations for "reschedule"
+and "change how it repeats". Retried requests are the API's job
+(idempotency keys); the domain advances once per `Complete` call.
+
+---
+
+## 2026-11-13 Defer date moves with a repeating item
+
+**Context:** A repeating item deferred until two days before it is
+due would otherwise reappear at once after being completed.
+
+**Decision:** On completion the defer date keeps the same number of
+days ahead of the new occurrence as it had ahead of the old one,
+measured from the rule's day, not a moved due date. A defer date
+later than the occurrence is dropped.
+
+**Alternatives considered:** Clearing it (item shows immediately).
+Leaving it (same effect, and stale).
+
+**Consequences:** "Defer" on a repeating item acts as a lead time.
+
+---
+
+## 2026-11-13 Reminders are an instant or an offset from the due date
+
+**Context:** Rescheduling must never alter reminders, yet a reminder
+has to follow the item to its new day.
+
+**Decision:** A `Reminder` is either a fixed instant or a signed
+wall-clock offset from the due date and time. A due date without a
+time counts as 00:00, so +9h is "09:00 on the day" and -6h is
+"18:00 the day before". The offset is added on the wall clock and
+then resolved by `LocalTimeResolver`, so it survives clock changes.
+Offsets are limited to 366 days. A relative reminder on an item
+with no due date, and any reminder on a finished item, has no fire
+time.
+
+**Alternatives considered:** Storing computed fire times (must be
+rewritten on every reschedule). A separate "days before plus time of
+day" kind (a second mechanism for what a signed offset already
+does).
+
+**Consequences:** Rescheduling and repeating never write to
+reminders. A fixed-instant reminder on a repeating item fires once.
+Delivery state (scheduled, fired, shown, acknowledged) is not
+modelled yet; that is M5.
+
+---
