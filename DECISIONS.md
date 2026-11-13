@@ -320,3 +320,30 @@ cannot enforce: the endpoint that moves a project needs a test,
 through HTTP, that a loop is refused.
 
 ---
+
+## 2026-11-13 Four lists, four priorities; finished is not a list
+
+**Context:** VISION.md names the GTD lists and says items have
+priorities, without fixing either. Todoist has four priority levels
+and nothing like the lists.
+
+**Decision:** An open item is on exactly one list: `Inbox`,
+`NextAction`, `WaitingFor` or `Someday`. A new item starts in the
+inbox. Priority is `None`, `Low`, `Medium` or `High`. Being finished
+is not a list: `CompletedAt` records it, and the item keeps the list
+it was on. Setting a list, priority or repeat mode that does not
+exist is an error, because any number can be cast to an enum and an
+item on a list that does not exist would be shown nowhere.
+
+**Alternatives considered:** A `Completed` list (the item would
+forget which list it was on, which undo needs in order to put it
+back). Lists the owner can define (nothing in VISION.md asks for
+them).
+
+**Consequences:** Every view of open items has to leave out items
+that have `CompletedAt`. The Todoist import (M4) has to map
+Todoist's four priorities onto these four and decide which list each
+imported item goes on. There is no way yet to reopen a finished
+item; undo needs one.
+
+---
