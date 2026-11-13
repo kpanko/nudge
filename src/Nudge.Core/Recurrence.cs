@@ -12,8 +12,9 @@ public sealed record Recurrence(
 {
     /// <summary>
     /// The occurrence that replaces the one just completed, or null
-    /// if the series has ended. Calling this once advances the item
-    /// by exactly one occurrence.
+    /// if the series has ended or has no occurrence in the next 400
+    /// years; either way the item stops repeating. Calling this
+    /// once advances the item by exactly one occurrence.
     /// </summary>
     /// <param name="occurrence">The day the rule placed the completed
     /// occurrence on. This is not the due date if the occurrence was
