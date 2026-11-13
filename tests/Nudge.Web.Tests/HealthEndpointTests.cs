@@ -1,10 +1,9 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Nudge.Web.Tests;
 
-public class HealthEndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public class HealthEndpointTests(NudgeWebFactory factory)
+    : IClassFixture<NudgeWebFactory>
 {
     [Fact]
     public async Task Healthz_ReturnsOk()
