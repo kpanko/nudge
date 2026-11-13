@@ -3,7 +3,7 @@
 Each milestone is sized to fit roughly one working session and ends
 deployed and tested. Status values: planned | in-progress | done
 
-## M0: Foundation — `in-progress`
+## M0: Foundation — `done`
 **Goal:** An empty but real app: builds, tests, runs in CI, deploys.
 
 **Acceptance criteria:**
@@ -18,7 +18,7 @@ deployed and tested. Status values: planned | in-progress | done
 - [x] Dockerfile
 - [x] GitHub repository and first push
 - [x] `fly.toml`, volume, Litestream backup, first manual deploy
-- [ ] Deploy job in CI with an approval gate
+- [x] Deploy job in CI with an approval gate
 
 ---
 
