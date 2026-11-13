@@ -8,7 +8,14 @@ RUN dotnet publish src/Nudge.Web \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
+COPY --from=litestream/litestream:0.3.13 \
+    /usr/local/bin/litestream \
+    /usr/local/bin/litestream
+COPY litestream.yml /etc/litestream.yml
+COPY run.sh /app/run.sh
 COPY --from=build /app .
+RUN chmod +x /app/run.sh && mkdir -p /data
 ENV ASPNETCORE_HTTP_PORTS=8080
+ENV ConnectionStrings__Nudge="Data Source=/data/nudge.db"
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "Nudge.Web.dll"]
+ENTRYPOINT ["/app/run.sh"]

@@ -4,23 +4,28 @@
 **Current milestone:** M0 Foundation
 
 ## In Progress
-- M0: solution, health endpoint, CI workflow and Dockerfile exist
-  locally. Not yet pushed or deployed.
+- M0: everything is done except the CI deploy job.
 
 ## Recently Completed
-- Name, architecture, language and milestone plan agreed.
+- Deployed to Fly.io as `nudge-gtd` (region `ord`), one machine,
+  SQLite on volume `nudge_data`, Litestream replicating to the
+  Tigris bucket `nudge-gtd-backup`.
+- Retargeted to .NET 10; public repo `kpanko/nudge`; CI green.
 
 ## Next Up
-1. Create the GitHub repository and push; confirm CI is green.
-2. Fly.io: app, volume, Litestream, deploy job with approval gate.
-3. Start M1 with the recurrence engine and its tests.
+1. Deploy job in CI with an approval gate (needs a Fly deploy
+   token stored as a GitHub secret).
+2. Start M1 with the recurrence engine and its tests.
 
 ## Blockers / Open Questions
-- Fly CLI is installed as `flyctl` but not logged in.
-- The solution targets net10.0 but only the .NET 8 and 9 SDKs
-  are installed locally; install the .NET 10 SDK to build here.
+- None.
 
 ## Key Context
 - The working folder is still named `tbd-project-name`.
-- MAUI and Android workloads are already installed.
+- MAUI and Android workloads are installed for .NET 9; the .NET 10
+  workloads have not been checked.
 - `dotnet workload list` hangs on this machine; avoid it.
+- Deploy manually with `flyctl deploy --ha=false`. The local
+  flyctl is old and failed to allocate IPs on first deploy; they
+  were allocated by hand.
+- A restore from backup has not been rehearsed yet.

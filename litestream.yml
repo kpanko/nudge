@@ -1,0 +1,8 @@
+dbs:
+  - path: /data/nudge.db
+    replicas:
+      - type: s3
+        bucket: ${BUCKET_NAME}
+        path: nudge
+        endpoint: ${AWS_ENDPOINT_URL_S3}
+        region: ${AWS_REGION}

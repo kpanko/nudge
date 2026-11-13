@@ -7,9 +7,9 @@ deployed and tested. Status values: planned | in-progress | done
 **Goal:** An empty but real app: builds, tests, runs in CI, deploys.
 
 **Acceptance criteria:**
-- [ ] `dotnet test` passes locally and in GitHub Actions
-- [ ] A health endpoint responds from the deployed Fly.io app
-- [ ] SQLite lives on a Fly volume with Litestream backup running
+- [x] `dotnet test` passes locally and in GitHub Actions
+- [x] A health endpoint responds from the deployed Fly.io app
+- [x] SQLite lives on a Fly volume with Litestream backup running
 
 **Tasks:**
 - [x] Solution with `Nudge.Core`, `Nudge.Web`, `Nudge.Core.Tests`
@@ -17,7 +17,8 @@ deployed and tested. Status values: planned | in-progress | done
 - [x] CI workflow: build and test
 - [x] Dockerfile
 - [x] GitHub repository and first push
-- [ ] `fly.toml`, volume, Litestream, deploy job with approval gate
+- [x] `fly.toml`, volume, Litestream backup, first manual deploy
+- [ ] Deploy job in CI with an approval gate
 
 ---
 
