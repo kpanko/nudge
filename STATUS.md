@@ -4,23 +4,28 @@
 **Current milestone:** M1 Core, recurrence, REST API
 
 ## In Progress
-- Nothing. M0 is complete.
+- M1. Recurrence engine is done (PR open); entities are next.
 
 ## Recently Completed
+- Recurrence engine in `Nudge.Core`: `RecurrenceRule` (RRULE
+  subset), `Recurrence` (fixed-schedule and after-completion),
+  `LocalTimeResolver` (DST), with unit and CsCheck property tests.
 - Deployed to Fly.io as `nudge-gtd` (region `ord`), one machine,
   SQLite on volume `nudge_data`, Litestream replicating to the
   Tigris bucket `nudge-gtd-backup`.
-- Retargeted to .NET 10; public repo `kpanko/nudge`; CI green.
 
 ## Next Up
 1. Rehearse a restore from the Litestream backup.
-2. Start M1 with the recurrence engine and its tests.
+2. M1 entities: item, project (nested), context, reminder. An item
+   must keep the rule's occurrence day apart from its due date.
+3. The named regression test "setting a due date keeps the repeat
+   rule" needs the item entity; "complete once advances once"
+   exists at engine level and should be repeated at item level.
 
 ## Blockers / Open Questions
 - None.
 
 ## Key Context
-- The working folder is still named `tbd-project-name`.
 - MAUI and Android workloads are installed for .NET 9; the .NET 10
   workloads have not been checked.
 - `dotnet workload list` hangs on this machine; avoid it.
