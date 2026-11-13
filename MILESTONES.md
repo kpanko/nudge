@@ -22,20 +22,20 @@ deployed and tested. Status values: planned | in-progress | done
 
 ---
 
-## M1: Core, recurrence, REST API — `planned`
+## M1: Core, recurrence, REST API — `in-progress`
 **Goal:** The domain is correct and reachable over HTTP.
 
 **Acceptance criteria:**
 - [ ] Completing a repeating item once advances it exactly once
 - [ ] Setting a due date never removes the repeat rule
 - [ ] Rescheduling one occurrence leaves rule and reminders intact
-- [ ] Property-based recurrence tests pass across DST changes,
+- [x] Property-based recurrence tests pass across DST changes,
       month ends and leap years
 - [ ] Every write is in the change log and can be undone
 
 **Tasks:**
 - [ ] Entities: item, project (nested), context, reminder
-- [ ] Recurrence engine: fixed-schedule and after-completion modes
+- [x] Recurrence engine: fixed-schedule and after-completion modes
 - [ ] EF Core + SQLite persistence and migrations
 - [ ] Change log, soft delete, undo
 - [ ] REST endpoints with OpenAPI; dry-run and idempotency keys
