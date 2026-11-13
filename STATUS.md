@@ -4,7 +4,7 @@
 **Current milestone:** M1 Core, recurrence, REST API
 
 ## In Progress
-- M1. Recurrence engine is done (PR open); entities are next.
+- M1. Recurrence engine is merged (PR #1); entities are next.
 
 ## Recently Completed
 - Recurrence engine in `Nudge.Core`: `RecurrenceRule` (RRULE
@@ -26,6 +26,12 @@
 - None.
 
 ## Key Context
+- No GitHub issues or labels exist yet (`/setup-github` has not
+  been run); PR #1 closed no issue.
+- CodeRabbit reviews pull requests when triggered. Its findings on
+  PR #1 were valid and are fixed.
+- `RecurrenceRule` returns null when nothing matches within 400
+  years; this is deliberate and means "stops repeating".
 - MAUI and Android workloads are installed for .NET 9; the .NET 10
   workloads have not been checked.
 - `dotnet workload list` hangs on this machine; avoid it.
