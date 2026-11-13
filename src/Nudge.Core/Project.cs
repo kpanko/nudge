@@ -17,6 +17,14 @@ public sealed class Project
         Parent = parent;
     }
 
+    // For the persistence layer. It fills in Parent itself after
+    // creating the project, so it cannot use a constructor that
+    // takes one.
+    private Project(string name)
+        : this(name, null)
+    {
+    }
+
     public Guid Id { get; }
 
     public string Name

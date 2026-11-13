@@ -210,3 +210,113 @@ Delivery state (scheduled, fired, shown, acknowledged) is not
 modelled yet; that is M5.
 
 ---
+
+## 2026-11-13 EF Core in Nudge.Web, migrations applied at startup
+
+**Context:** `Nudge.Core` has to stay free of storage code. There is
+one app, one SQLite file and one process using it.
+
+**Decision:** `NudgeDbContext` and its mappings live in
+`Nudge.Web/Data`, on EF Core 10, the newest line that runs on
+.NET 10; it brings Microsoft.Data.Sqlite with it, so the two cannot
+be on different versions. Migrations are generated with the
+`dotnet-ef` tool pinned in `dotnet-tools.json`, committed, and
+applied by the app when it starts, before it serves anything.
+Startup first removes any migration lock left by a process that was
+killed, because EF Core would wait for it for ever.
+
+**Alternatives considered:** A separate `Nudge.Data` project (two
+more projects with no second user of them yet). Applying migrations
+as a deploy step, by bundle or script (one more step to forget, and
+nobody but the owner to review the SQL).
+
+**Consequences:** A migration that fails stops the app at startup,
+where the Fly health check shows it. A test fails if the model and
+the migrations disagree. A merged migration is never edited; a new
+one is added. EF Core moves to 11 only together with .NET 11.
+Removing the lock is only safe while a single process uses the
+database, and depends on EF Core's lock table; a test covers it.
+
+---
+
+## 2026-11-13 Stored values are readable and sort correctly
+
+**Context:** The owner must be able to read the database with any
+SQLite tool, and queries must be able to sort and compare in SQL.
+
+**Decision:**
+- Ids are made by the entities (version 7 GUIDs) and stored as
+  text. The database never generates one.
+- Instants are UTC text of fixed width,
+  `2026-11-13T04:30:00.0000000Z`. The offset they were created with
+  is not kept.
+- Dates are `2026-11-13`, times of day `14:30:00`, a reminder's
+  offset `-00:30:00`.
+- `ItemState` and `RecurrenceMode` are stored by name. `Priority` is
+  stored as its number, because it is a scale and has to sort.
+- How an item repeats is three columns on the item (the rule as
+  RRULE text, the mode, the start day), all null if it does not.
+
+**Alternatives considered:** The SQLite provider's own format for
+instants (local time with an offset: it does not sort, and EF Core
+refuses to compare it in SQL). Numbers for every enum (unreadable,
+and reordering an enum would change what rows mean). One JSON
+column for the repeat rule (harder to read and to constrain).
+
+**Consequences:** Instants are read back in UTC. Renaming a member
+of `ItemState` or `RecurrenceMode`, or renumbering `Priority`, needs
+a migration that rewrites the rows; a test pins the formats. The
+entities refuse enum values that are not defined, so EF Core's own
+conversions can be used as they are.
+
+---
+
+## 2026-11-13 The database repeats the rules the entities keep
+
+**Context:** "Data cannot be wrecked through the API" should not
+depend on every write going through a correct entity.
+
+**Decision:** Check constraints: an item has all of rule, mode,
+start day and occurrence day, or none; no due date means no due
+time and no rule; a reminder is an instant or an offset, never both
+or neither. Foreign keys: a reminder goes when its item goes; a
+project that still has items or projects under it cannot be
+deleted. One rule is new here because an entity cannot check it
+alone: context names are unique, ignoring the case of ASCII
+letters.
+
+**Alternatives considered:** Trusting the entities alone (one wrong
+query or hand edit away from a row that completes for good instead
+of repeating).
+
+**Consequences:** Changing one of these rules needs a migration.
+The API has to turn a duplicate context name into a clear error.
+What deleting a project with things in it should do is left to the
+soft-delete task; until then the database refuses it.
+
+---
+
+## 2026-11-13 Items are read whole, projects all together
+
+**Context:** The entities assume they hold everything that belongs
+to them. A half-loaded item looks like an item without reminders. A
+project read without its parent looks like a top-level project, and
+`MoveUnder` cannot see a loop through a parent it was never given.
+
+**Decision:** Every query for items brings their project, contexts
+and reminders along, in a single SQL query. Code that uses
+`Ancestors` or `MoveUnder` reads all projects first; there are few.
+A project or context that already exists is read through the same
+`NudgeDbContext` before it is given to an item.
+
+**Alternatives considered:** Naming what to load at each call
+(forgetting is silent). Lazy loading (needs unsealed entities with
+virtual members, and hides queries). Split queries (several round
+trips that can each see a different state).
+
+**Consequences:** Reading items joins four tables, which is fine at
+this size. The rule for projects is a convention the database
+cannot enforce: the endpoint that moves a project needs a test,
+through HTTP, that a loop is refused.
+
+---
