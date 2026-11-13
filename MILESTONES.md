@@ -34,7 +34,7 @@ deployed and tested. Status values: planned | in-progress | done
 - [ ] Every write is in the change log and can be undone
 
 **Tasks:**
-- [ ] Entities: item, project (nested), context, reminder
+- [x] Entities: item, project (nested), context, reminder
 - [x] Recurrence engine: fixed-schedule and after-completion modes
 - [ ] EF Core + SQLite persistence and migrations
 - [ ] Change log, soft delete, undo
