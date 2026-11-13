@@ -189,6 +189,21 @@ public class ItemTests
     }
 
     [Fact]
+    public void Repeat_ModeThatDoesNotExist_IsRefused()
+    {
+        var item = new Item("Water the plants");
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => item.Repeat(
+                RecurrenceRule.Parse("FREQ=DAILY"),
+                (RecurrenceMode)2,
+                Day(2026, 11, 12)));
+
+        Assert.Null(item.Recurrence);
+        Assert.Null(item.DueDate);
+    }
+
+    [Fact]
     public void Complete_LastOccurrence_FinishesTheItem()
     {
         var item = Repeating(
@@ -284,6 +299,26 @@ public class ItemTests
 
         var item = new Item("Call the plumber");
         Assert.Throws<ArgumentException>(() => item.Title = title);
+    }
+
+    // Any number can be cast to an enum. An item whose state is
+    // not one of the lists would not be shown anywhere.
+    [Fact]
+    public void StateOrPriorityThatDoesNotExist_IsRefused()
+    {
+        var item = new Item("Call the plumber")
+        {
+            State = ItemState.Someday,
+            Priority = Priority.High,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => item.State = (ItemState)4);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => item.Priority = (Priority)(-1));
+
+        Assert.Equal(ItemState.Someday, item.State);
+        Assert.Equal(Priority.High, item.Priority);
     }
 
     [Fact]

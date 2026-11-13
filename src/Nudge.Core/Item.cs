@@ -10,6 +10,8 @@ public sealed class Item
     private readonly HashSet<Context> _contexts = [];
     private readonly List<Reminder> _reminders = [];
     private string _title;
+    private ItemState _state = ItemState.Inbox;
+    private Priority _priority;
 
     public Item(string title)
     {
@@ -27,9 +29,23 @@ public sealed class Item
 
     public string Notes { get; set; } = "";
 
-    public ItemState State { get; set; } = ItemState.Inbox;
+    /// <exception cref="ArgumentOutOfRangeException">The value is
+    /// not one of the lists. A number can be cast to any enum, and
+    /// an item in a list that does not exist would be shown nowhere.
+    /// </exception>
+    public ItemState State
+    {
+        get => _state;
+        set => _state = Defined(value, nameof(value));
+    }
 
-    public Priority Priority { get; set; }
+    /// <exception cref="ArgumentOutOfRangeException">The value is
+    /// not one of the priorities.</exception>
+    public Priority Priority
+    {
+        get => _priority;
+        set => _priority = Defined(value, nameof(value));
+    }
 
     /// <summary>The project this item belongs to, if any.</summary>
     public Project? Project { get; set; }
@@ -136,12 +152,15 @@ public sealed class Item
     /// </summary>
     /// <exception cref="ArgumentException">A fixed-schedule rule has
     /// no occurrence on or after <paramref name="start"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="mode"/> is not one of the modes.</exception>
     public void Repeat(
         RecurrenceRule rule,
         RecurrenceMode mode,
         DateOnly start)
     {
         ArgumentNullException.ThrowIfNull(rule);
+        Defined(mode, nameof(mode));
 
         var first = mode == RecurrenceMode.FixedSchedule
             ? rule.NextOnOrAfter(start, start)
@@ -204,6 +223,23 @@ public sealed class Item
         DeferUntil = NextDeferDate(occurrence, nextDay);
         OccurrenceDate = nextDay;
         DueDate = nextDay;
+    }
+
+    /// <summary>The value, if the enum has a member for it.</summary>
+    private static TEnum Defined<TEnum>(
+        TEnum value,
+        string paramName)
+        where TEnum : struct, Enum
+    {
+        if (!Enum.IsDefined(value))
+        {
+            throw new ArgumentOutOfRangeException(
+                paramName,
+                value,
+                $"Not one of the {typeof(TEnum).Name} values.");
+        }
+
+        return value;
     }
 
     /// <summary>
