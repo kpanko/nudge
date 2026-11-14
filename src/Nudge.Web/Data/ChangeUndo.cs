@@ -25,6 +25,8 @@ namespace Nudge.Web.Data;
 /// </remarks>
 internal sealed class ChangeUndo(NudgeDbContext db)
 {
+    private const string Savepoint = "undo";
+
     private readonly ISqlGenerationHelper _sql =
         db.GetService<ISqlGenerationHelper>();
 
@@ -42,105 +44,19 @@ internal sealed class ChangeUndo(NudgeDbContext db)
                 + " one in progress first.");
         }
 
-        if (db.ChangeTracker.HasChanges())
-        {
-            throw new InvalidOperationException(
-                "Save or discard what was changed through this"
-                + " context before undoing.");
-        }
-
+        RequireNothingUnsaved();
         try
         {
             // Holds the write lock from here on, so nothing can
             // change between the checks and the writes.
             await using var transaction = await db.Database
                 .BeginTransactionAsync(cancellationToken);
-            var at = db.Now;
-
-            var change = await db.Changes
-                .AsNoTracking()
-                .SingleOrDefaultAsync(
-                    c => c.Id == changeId,
-                    cancellationToken);
-            if (change is null)
+            var undo = await UndoAsync(changeId, source, cancellationToken);
+            if (undo is not null)
             {
-                return null;
+                await transaction.CommitAsync(cancellationToken);
             }
 
-            if (await StandingUndoAsync(changeId, cancellationToken)
-                is { } undoneBy)
-            {
-                throw new UndoRefusedException(
-                [
-                    $"Change {changeId} has already been undone, by"
-                    + $" change {undoneBy}.",
-                ]);
-            }
-
-            var steps = new List<Step>();
-            var problems = new List<string>();
-            foreach (var entry in change.Entries.OrderBy(e => e.Ordinal))
-            {
-                var step = await PlanAsync(
-                    entry,
-                    at,
-                    problems,
-                    cancellationToken);
-                if (step is not null)
-                {
-                    steps.Add(step);
-                }
-            }
-
-            if (problems.Count > 0)
-            {
-                throw new UndoRefusedException(problems);
-            }
-
-            var wrongBefore = await Integrity.ProblemsAsync(
-                db,
-                cancellationToken);
-            try
-            {
-                foreach (var step in steps)
-                {
-                    await step.Apply(cancellationToken);
-                }
-            }
-            catch (DbException e)
-            {
-                // A constraint: for example, the name of a context
-                // that would come back has been taken since.
-                throw new UndoRefusedException(
-                    [$"The database refused it: {e.Message}"]);
-            }
-
-            // Only what this undo would break counts against it. If
-            // something was wrong already, refusing every undo would
-            // not put that right.
-            var wrongAfter = await Integrity.ProblemsAsync(
-                db,
-                cancellationToken);
-            var broken = wrongAfter.Except(wrongBefore).ToList();
-            if (broken.Count > 0)
-            {
-                throw new UndoRefusedException(
-                    broken
-                        .Select(
-                            problem =>
-                                $"Afterwards this would be wrong: {problem}")
-                        .ToList());
-            }
-
-            var undo = new Change(
-                at,
-                source,
-                db.Description,
-                changeId,
-                steps.Select(step => step.Inverse));
-            db.Changes.Add(undo);
-            await db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
             return undo;
         }
         finally
@@ -150,6 +66,160 @@ internal sealed class ChangeUndo(NudgeDbContext db)
             // was nothing unsaved to lose: that was checked above.
             db.ChangeTracker.Clear();
         }
+    }
+
+    /// <summary>
+    /// The same, inside the transaction already open on the context,
+    /// which the caller commits or rolls back. A refused undo is
+    /// rolled back to a savepoint taken first, so it leaves the
+    /// transaction as it found it.
+    /// </summary>
+    public async Task<Change?> RunWithinAsync(
+        long changeId,
+        CancellationToken cancellationToken)
+    {
+        var source = db.RequiredSource();
+        var transaction = db.Database.CurrentTransaction
+            ?? throw new InvalidOperationException(
+                "Open a transaction first, or use UndoAsync, which"
+                + " opens its own.");
+        RequireNothingUnsaved();
+        try
+        {
+            await transaction.CreateSavepointAsync(
+                Savepoint,
+                cancellationToken);
+            try
+            {
+                var undo = await UndoAsync(
+                    changeId,
+                    source,
+                    cancellationToken);
+                await transaction.ReleaseSavepointAsync(
+                    Savepoint,
+                    cancellationToken);
+                return undo;
+            }
+            catch
+            {
+                await transaction.RollbackToSavepointAsync(
+                    Savepoint,
+                    CancellationToken.None);
+                throw;
+            }
+        }
+        finally
+        {
+            // As above.
+            db.ChangeTracker.Clear();
+        }
+    }
+
+    private void RequireNothingUnsaved()
+    {
+        if (db.ChangeTracker.HasChanges())
+        {
+            throw new InvalidOperationException(
+                "Save or discard what was changed through this"
+                + " context before undoing.");
+        }
+    }
+
+    /// <summary>
+    /// Checks and writes the undo, in the transaction that is open,
+    /// and saves the change that records it.
+    /// </summary>
+    private async Task<Change?> UndoAsync(
+        long changeId,
+        string source,
+        CancellationToken cancellationToken)
+    {
+        var at = db.Now;
+
+        var change = await db.Changes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                c => c.Id == changeId,
+                cancellationToken);
+        if (change is null)
+        {
+            return null;
+        }
+
+        if (await StandingUndoAsync(changeId, cancellationToken)
+            is { } undoneBy)
+        {
+            throw new UndoRefusedException(
+            [
+                $"Change {changeId} has already been undone, by"
+                + $" change {undoneBy}.",
+            ]);
+        }
+
+        var steps = new List<Step>();
+        var problems = new List<string>();
+        foreach (var entry in change.Entries.OrderBy(e => e.Ordinal))
+        {
+            var step = await PlanAsync(
+                entry,
+                at,
+                problems,
+                cancellationToken);
+            if (step is not null)
+            {
+                steps.Add(step);
+            }
+        }
+
+        if (problems.Count > 0)
+        {
+            throw new UndoRefusedException(problems);
+        }
+
+        var wrongBefore = await Integrity.ProblemsAsync(
+            db,
+            cancellationToken);
+        try
+        {
+            foreach (var step in steps)
+            {
+                await step.Apply(cancellationToken);
+            }
+        }
+        catch (DbException e)
+        {
+            // A constraint: for example, the name of a context
+            // that would come back has been taken since.
+            throw new UndoRefusedException(
+                [$"The database refused it: {e.Message}"]);
+        }
+
+        // Only what this undo would break counts against it. If
+        // something was wrong already, refusing every undo would
+        // not put that right.
+        var wrongAfter = await Integrity.ProblemsAsync(
+            db,
+            cancellationToken);
+        var broken = wrongAfter.Except(wrongBefore).ToList();
+        if (broken.Count > 0)
+        {
+            throw new UndoRefusedException(
+                broken
+                    .Select(
+                        problem =>
+                            $"Afterwards this would be wrong: {problem}")
+                    .ToList());
+        }
+
+        var undo = new Change(
+            at,
+            source,
+            db.Description,
+            changeId,
+            steps.Select(step => step.Inverse));
+        db.Changes.Add(undo);
+        await db.SaveChangesAsync(cancellationToken);
+        return undo;
     }
 
     /// <summary>
@@ -338,7 +408,8 @@ internal sealed class ChangeUndo(NudgeDbContext db)
             .SingleOrDefault(t => t.GetTableName() == name);
         if (type is null
             || type.ClrType == typeof(Change)
-            || type.ClrType == typeof(ChangeEntry))
+            || type.ClrType == typeof(ChangeEntry)
+            || type.ClrType == typeof(IdempotencyRecord))
         {
             return null;
         }

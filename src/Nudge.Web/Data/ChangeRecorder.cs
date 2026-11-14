@@ -36,6 +36,15 @@ internal static class ChangeRecorder
                 continue;
             }
 
+            // Bookkeeping about requests, not the owner's data. If it
+            // were logged, undoing a change would remove the record
+            // of the request that made it, and a retry of that
+            // request would be carried out a second time.
+            if (tracked.Entity is IdempotencyRecord)
+            {
+                continue;
+            }
+
             var entry = tracked.State switch
             {
                 EntityState.Added => Added(tracked),

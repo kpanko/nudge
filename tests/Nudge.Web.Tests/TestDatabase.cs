@@ -76,15 +76,16 @@ internal sealed class TestDatabase : IDisposable
     }
 
     /// <summary>The tables that hold the owner's data: every table
-    /// but the change log and the ones EF Core and SQLite keep for
-    /// themselves.</summary>
+    /// but the change log, the record of idempotent requests, and the
+    /// ones EF Core and SQLite keep for themselves.</summary>
     public List<string> DataTables()
     {
         return Strings(
             """
             SELECT name FROM sqlite_master
             WHERE type = 'table'
-              AND name NOT IN ('Changes', 'ChangeEntries')
+              AND name NOT IN
+                ('Changes', 'ChangeEntries', 'IdempotencyRecords')
               AND name NOT LIKE '\_\_EF%' ESCAPE '\'
               AND name NOT LIKE 'sqlite\_%' ESCAPE '\'
             ORDER BY name

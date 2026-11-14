@@ -238,6 +238,45 @@ namespace Nudge.Web.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Nudge.Web.Data.IdempotencyRecord", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ChangeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("ChangeId");
+
+                    b.ToTable("IdempotencyRecords", (string)null);
+                });
+
             modelBuilder.Entity("ItemContexts", b =>
                 {
                     b.HasOne("Nudge.Core.Context", null)
@@ -297,6 +336,14 @@ namespace Nudge.Web.Data.Migrations
                         .HasForeignKey("ChangeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Nudge.Web.Data.IdempotencyRecord", b =>
+                {
+                    b.HasOne("Nudge.Web.Data.Change", null)
+                        .WithMany()
+                        .HasForeignKey("ChangeId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Nudge.Core.Item", b =>

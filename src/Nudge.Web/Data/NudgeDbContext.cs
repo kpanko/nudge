@@ -75,6 +75,12 @@ public sealed class NudgeDbContext(
     /// directly.</summary>
     public DbSet<Change> Changes => Set<Change>();
 
+    /// <summary>Write requests that came with an idempotency key,
+    /// and how they were answered. Not part of the change log.
+    /// </summary>
+    public DbSet<IdempotencyRecord> IdempotencyRecords =>
+        Set<IdempotencyRecord>();
+
     /// <summary>
     /// Who is making the changes saved through this context: for
     /// example "web", or the name of an API token. It is recorded
@@ -88,6 +94,10 @@ public sealed class NudgeDbContext(
     /// "Complete item". Recorded with every change; may be left
     /// empty.</summary>
     public string Description { get; set; } = "";
+
+    /// <summary>The change recorded by the last save through this
+    /// context that changed anything, or null if none has.</summary>
+    public Change? LastChange { get; private set; }
 
     internal DateTimeOffset Now => _clock.GetUtcNow();
 
@@ -104,7 +114,9 @@ public sealed class NudgeDbContext(
         var change = Record();
         try
         {
-            return base.SaveChanges(acceptAllChangesOnSuccess);
+            var rows = base.SaveChanges(acceptAllChangesOnSuccess);
+            LastChange = change ?? LastChange;
+            return rows;
         }
         catch
         {
@@ -121,9 +133,11 @@ public sealed class NudgeDbContext(
         var change = Record();
         try
         {
-            return await base.SaveChangesAsync(
+            var rows = await base.SaveChangesAsync(
                 acceptAllChangesOnSuccess,
                 cancellationToken);
+            LastChange = change ?? LastChange;
+            return rows;
         }
         catch
         {
@@ -155,6 +169,25 @@ public sealed class NudgeDbContext(
         CancellationToken cancellationToken = default)
     {
         return new ChangeUndo(this).RunAsync(changeId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Like <see cref="UndoAsync"/>, but inside the transaction that
+    /// is already open on this context, so that the caller decides
+    /// whether it is committed and can write more in it. If the undo
+    /// is refused, what it had written is rolled back to a savepoint
+    /// and the transaction is left as it was before.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="Source"/> is not set, this context has unsaved
+    /// changes, or no transaction is open.</exception>
+    public Task<Change?> UndoWithinAsync(
+        long changeId,
+        CancellationToken cancellationToken = default)
+    {
+        return new ChangeUndo(this).RunWithinAsync(
+            changeId,
+            cancellationToken);
     }
 
     /// <summary>
@@ -262,6 +295,8 @@ public sealed class NudgeDbContext(
         modelBuilder.ApplyConfiguration(new ContextConfiguration());
         modelBuilder.ApplyConfiguration(new ChangeConfiguration());
         modelBuilder.ApplyConfiguration(new ChangeEntryConfiguration());
+        modelBuilder.ApplyConfiguration(
+            new IdempotencyRecordConfiguration());
     }
 
     /// <summary>
