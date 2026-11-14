@@ -87,6 +87,14 @@ public sealed class Item
 
     public bool IsCompleted => CompletedAt is not null;
 
+    /// <summary>When the item was deleted, or null if it has not
+    /// been. A deleted item is kept, so that deleting it can be
+    /// undone, but it is on no list and its reminders do not fire.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; private set; }
+
+    public bool IsDeleted => DeletedAt is not null;
+
     public void AddContext(Context context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -223,6 +231,24 @@ public sealed class Item
         DeferUntil = NextDeferDate(occurrence, nextDay);
         OccurrenceDate = nextDay;
         DueDate = nextDay;
+    }
+
+    /// <summary>
+    /// Deletes the item by marking it. Nothing else about it
+    /// changes, so taking the deletion back leaves it exactly as it
+    /// was.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The item is
+    /// already deleted.</exception>
+    public void Delete(DateTimeOffset at)
+    {
+        if (IsDeleted)
+        {
+            throw new InvalidOperationException(
+                "The item is already deleted.");
+        }
+
+        DeletedAt = at;
     }
 
     /// <summary>The value, if the enum has a member for it.</summary>

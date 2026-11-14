@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Nudge.Core;
 
@@ -145,21 +146,23 @@ public sealed class ProjectPersistenceTests : IDisposable
         Assert.Equal(0L, _database.Scalar("SELECT COUNT(*) FROM Items"));
     }
 
+    // Deleting a project marks its row, and the context refuses to
+    // remove one. The next three are what the database does if a
+    // row is removed some other way.
     [Fact]
-    public void Project_WithProjectsUnderIt_CannotBeDeleted()
+    public void ProjectRow_WithProjectsUnderIt_CannotBeRemoved()
     {
         var house = new Project("House");
         Save(new Project("Kitchen", house));
 
-        using var db = _database.NewContext();
-        db.Projects.Remove(db.Projects.Single(p => p.Id == house.Id));
-
-        Assert.Throws<DbUpdateException>(() => db.SaveChanges());
+        Assert.Throws<SqliteException>(
+            () => _database.Execute(
+                "DELETE FROM Projects WHERE Name = 'House'"));
         Assert.Equal(2L, _database.Scalar("SELECT COUNT(*) FROM Projects"));
     }
 
     [Fact]
-    public void Project_WithItems_CannotBeDeleted()
+    public void ProjectRow_WithItems_CannotBeRemoved()
     {
         var house = new Project("House");
         using (var db = _database.NewContext())
@@ -168,24 +171,18 @@ public sealed class ProjectPersistenceTests : IDisposable
             db.SaveChanges();
         }
 
-        using var delete = _database.NewContext();
-        delete.Projects.Remove(
-            delete.Projects.Single(p => p.Id == house.Id));
-
-        Assert.Throws<DbUpdateException>(() => delete.SaveChanges());
+        Assert.Throws<SqliteException>(
+            () => _database.Execute("DELETE FROM Projects"));
         Assert.Equal(1L, _database.Scalar("SELECT COUNT(*) FROM Projects"));
         Assert.Equal(1L, _database.Scalar("SELECT COUNT(*) FROM Items"));
     }
 
     [Fact]
-    public void EmptyProject_CanBeDeleted()
+    public void EmptyProjectRow_CanBeRemoved()
     {
-        var house = new Project("House");
-        Save(house);
+        Save(new Project("House"));
 
-        using var db = _database.NewContext();
-        db.Projects.Remove(db.Projects.Single(p => p.Id == house.Id));
-        db.SaveChanges();
+        _database.Execute("DELETE FROM Projects");
 
         Assert.Equal(0L, _database.Scalar("SELECT COUNT(*) FROM Projects"));
     }

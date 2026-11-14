@@ -57,8 +57,9 @@ public sealed class Reminder
 
     /// <summary>
     /// The instant this reminder fires for <paramref name="item"/>,
-    /// or null if it does not: the item is completed, or the reminder
-    /// is relative and the item has no due date to count from.
+    /// or null if it does not: the item is completed or deleted, or
+    /// the reminder is relative and the item has no due date to
+    /// count from.
     /// </summary>
     public DateTimeOffset? FireTime(
         Item item,
@@ -67,7 +68,7 @@ public sealed class Reminder
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(zone);
 
-        if (item.IsCompleted)
+        if (item.IsCompleted || item.IsDeleted)
         {
             return null;
         }

@@ -347,3 +347,119 @@ imported item goes on. There is no way yet to reopen a finished
 item; undo needs one.
 
 ---
+
+## 2026-11-13 Every save is recorded by the context, row by row
+
+**Context:** "Every change is logged and can be undone" has to hold
+for every write there will ever be, including the ones nobody has
+written yet. Writes come from the owner and from an agent.
+
+**Decision:** `NudgeDbContext` records what it saves. One save is
+one `Change` (number, time, `Source`, `Description`) with one entry
+for each row added, changed or removed, written in the same
+transaction as the rows. An entry holds the table, the row's key and
+the values before and after, as JSON keyed by column name, each
+value in the form the column holds. It is worked out from EF Core's
+change tracker, not from the entities, so a new table or column is
+logged without anything being added. Saving is refused until
+`Source` says who is saving. The change number is the one id the
+database makes: it gives the order changes were saved in, which a
+clock or a random id cannot be trusted to do.
+
+**Alternatives considered:** An event raised by each operation (a
+new operation that forgets to raise one leaves a silent gap).
+Triggers in SQLite (they would catch writes that go round the app,
+but they are SQL to keep in step with every column, and cannot say
+who made the change). One log row for each changed column (more
+rows, nothing gained).
+
+**Consequences:** Only saving through the context is logged:
+`ExecuteUpdate`, `ExecuteDelete` and hand-written SQL must not be
+used on these tables. The values before a change are the ones the
+context read, so a request that reads, waits and writes while
+another one writes in between logs what it believed, not what was
+there; the endpoints should take the write lock before they read.
+The log holds the same content as the tables, in the same file and
+the same backup, and is never pruned. A test fails if a column is
+not logged.
+
+---
+
+## 2026-11-13 Deleting marks a row; nothing the owner made is removed
+
+**Context:** "Deletes are soft." The storage task also left open
+what deleting a project with things in it should do.
+
+**Decision:** Items, projects and contexts have `DeletedAt` and a
+`Delete` method that sets it. The context refuses to remove their
+rows, so there is no other way to delete one. Queries leave marked
+rows out unless they ask with `IgnoreQueryFilters`. Deleting a
+project marks everything under it at the same time, in one change:
+its sub-projects at any depth and the items in them
+(`DeleteProjectAsync`). Deleting a context leaves its links to items
+in place, hidden, so the context is back on those items if the
+deletion is undone; meanwhile its name can be used again. Reminders
+of a deleted item do not fire. Reminders and the links between items
+and contexts have no mark: taking one off an item removes the row,
+and the change log keeps what it held.
+
+**Alternatives considered:** Refusing to delete a project that still
+has things in it (safe, but tedious, and deleting can be undone
+anyway). Treating everything under a deleted project as deleted
+without marking it (one row to write, but every query, and later the
+phone, would have to follow the chain of parents to know whether an
+item is deleted). A "deleted" list (the item would forget which list
+it was on).
+
+**Consequences:** A view of deleted things has to ask for them.
+Nothing is ever really removed; emptying the trash is not built.
+Only `DeleteProjectAsync` takes a project's contents with it:
+calling `Project.Delete` on its own leaves its items showing with no
+project, and nothing checks for that when saving. An undo that would
+bring a deleted context back is refused while another context has
+its name.
+
+---
+
+## 2026-11-13 Undo puts rows back in SQL and is itself a change
+
+**Context:** Anything in the log has to be undoable, including what
+an agent did an hour ago, after the owner has changed other things.
+The entities deliberately have no way to set, say, an old occurrence
+date.
+
+**Decision:** `UndoAsync` takes one change back by returning each
+row it touched to the values the log gives: changed columns get
+their old values, a removed row is inserted again, an added row
+goes. Adding an item, project or context is taken back by marking it
+deleted, because other rows may have come to depend on it. It is all
+or nothing, in one transaction, and refused when
+
+- a value it would put back has been changed again since (checked
+  column by column, so later changes to other columns do not
+  matter);
+- the database's own constraints object; or
+- afterwards something not deleted would belong to something
+  deleted, or a project would be under itself, and was not before.
+
+The undo is recorded as a new change that names the one it took
+back, so it can be undone in turn. A change cannot be undone twice
+while its undo stands.
+
+**Alternatives considered:** Undoing through the entities (each
+would need a back door that sets any field, which is what they were
+built not to have). Only ever undoing the latest change (useless
+once owner and agent take turns). Overwriting on conflict (loses the
+later change without saying so).
+
+**Consequences:** Undoing a completion is how a finished item is
+reopened, and undoing a deletion is how something is restored; there
+is no separate operation for either. The SQL is built from table and
+column names in the log, so they are checked against the model
+first. An entry made before a column was renamed or dropped, or
+before the way a value is stored was changed, is refused with a
+message rather than undone; a migration that does such a thing
+should rewrite the log entries too if they still need to be
+undoable.
+
+---

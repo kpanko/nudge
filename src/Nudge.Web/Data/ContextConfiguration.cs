@@ -14,9 +14,18 @@ internal sealed class ContextConfiguration
         builder.HasKey(context => context.Id);
         builder.Property(context => context.Id).ValueGeneratedNever();
 
+        // Deleted contexts are left out of queries, and so out of
+        // the contexts an item is read with; see the same line for
+        // items.
+        builder.HasQueryFilter(context => context.DeletedAt == null);
+
         // Two contexts cannot share a name, whatever the case of
         // its (ASCII) letters: "Phone" and "phone" are one context.
+        // A deleted context does not hold on to its name.
         builder.Property(context => context.Name).UseCollation("NOCASE");
-        builder.HasIndex(context => context.Name).IsUnique();
+        builder
+            .HasIndex(context => context.Name)
+            .IsUnique()
+            .HasFilter("\"DeletedAt\" IS NULL");
     }
 }

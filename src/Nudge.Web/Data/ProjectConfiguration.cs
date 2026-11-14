@@ -14,8 +14,12 @@ internal sealed class ProjectConfiguration
         builder.HasKey(project => project.Id);
         builder.Property(project => project.Id).ValueGeneratedNever();
 
-        // A project that still has projects under it cannot be
-        // deleted.
+        // Deleted projects are left out of queries; see the same
+        // line for items.
+        builder.HasQueryFilter(project => project.DeletedAt == null);
+
+        // The row of a project that still has projects under it
+        // cannot be removed.
         builder
             .HasOne(project => project.Parent)
             .WithMany()

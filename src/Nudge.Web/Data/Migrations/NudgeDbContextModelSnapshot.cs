@@ -38,6 +38,9 @@ namespace Nudge.Web.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DeletedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT")
@@ -46,7 +49,8 @@ namespace Nudge.Web.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("Contexts", (string)null);
                 });
@@ -60,6 +64,9 @@ namespace Nudge.Web.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateOnly?>("DeferUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeletedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("DoNotAutoReschedule")
@@ -126,6 +133,9 @@ namespace Nudge.Web.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DeletedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -161,6 +171,70 @@ namespace Nudge.Web.Data.Migrations
                     b.ToTable("Reminders", null, t =>
                         {
                             t.HasCheckConstraint("CK_Reminders_Kind", "(\"At\" IS NULL) <> (\"Offset\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Nudge.Web.Data.Change", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("At")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("Undoes")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Undoes");
+
+                    b.ToTable("Changes", (string)null);
+                });
+
+            modelBuilder.Entity("Nudge.Web.Data.ChangeEntry", b =>
+                {
+                    b.Property<long>("ChangeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("After")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Before")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RowKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TableName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ChangeId", "Ordinal");
+
+                    b.HasIndex("TableName", "RowKey");
+
+                    b.ToTable("ChangeEntries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChangeEntries_Kind", "(\"Before\" IS NULL) = (Kind = 'Added') AND (\"After\" IS NULL) = (Kind = 'Removed')");
                         });
                 });
 
@@ -208,9 +282,31 @@ namespace Nudge.Web.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Nudge.Web.Data.Change", b =>
+                {
+                    b.HasOne("Nudge.Web.Data.Change", null)
+                        .WithMany()
+                        .HasForeignKey("Undoes")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Nudge.Web.Data.ChangeEntry", b =>
+                {
+                    b.HasOne("Nudge.Web.Data.Change", null)
+                        .WithMany("Entries")
+                        .HasForeignKey("ChangeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Nudge.Core.Item", b =>
                 {
                     b.Navigation("Reminders");
+                });
+
+            modelBuilder.Entity("Nudge.Web.Data.Change", b =>
+                {
+                    b.Navigation("Entries");
                 });
 #pragma warning restore 612, 618
         }

@@ -278,6 +278,40 @@ public class ItemTests
     }
 
     [Fact]
+    public void Delete_MarksTheItem_AndChangesNothingElse()
+    {
+        var item = Repeating(
+            "FREQ=WEEKLY;BYDAY=FR",
+            RecurrenceMode.FixedSchedule,
+            Day(2026, 11, 13));
+        var reminder = Reminder.FromDue(TimeSpan.FromMinutes(-30));
+        item.AddReminder(reminder);
+        Assert.False(item.IsDeleted);
+        Assert.Null(item.DeletedAt);
+
+        item.Delete(November(13, 8));
+
+        Assert.True(item.IsDeleted);
+        Assert.Equal(November(13, 8), item.DeletedAt);
+        Assert.False(item.IsCompleted);
+        Assert.Equal(Day(2026, 11, 13), item.DueDate);
+        Assert.NotNull(item.Recurrence);
+        Assert.Same(reminder, Assert.Single(item.Reminders));
+    }
+
+    [Fact]
+    public void Delete_Twice_IsRefused()
+    {
+        var item = new Item("Buy a ladder");
+        item.Delete(November(12, 8));
+
+        Assert.Throws<InvalidOperationException>(
+            () => item.Delete(November(12, 9)));
+
+        Assert.Equal(November(12, 8), item.DeletedAt);
+    }
+
+    [Fact]
     public void NewItem_StartsInTheInbox()
     {
         var item = new Item("  Call the plumber ");

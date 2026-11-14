@@ -462,8 +462,11 @@ public sealed class ItemPersistenceTests : IDisposable
         Assert.Equal(2L, _database.Scalar("SELECT COUNT(*) FROM Contexts"));
     }
 
+    // Deleting an item marks its row, and the context refuses to
+    // remove one. This is what the database does if a row is
+    // removed some other way.
     [Fact]
-    public void DeletingAnItem_TakesItsRemindersAndNothingElse()
+    public void RemovingAnItemsRow_TakesItsRemindersAndNothingElse()
     {
         var item = new Item("Order the worktop")
         {
@@ -471,13 +474,9 @@ public sealed class ItemPersistenceTests : IDisposable
         };
         item.AddContext(new Context("phone"));
         item.AddReminder(Reminder.AtInstant(November(26, 9)));
-        var id = Save(item);
+        Save(item);
 
-        using (var db = _database.NewContext())
-        {
-            db.Items.Remove(db.Items.Single(i => i.Id == id));
-            db.SaveChanges();
-        }
+        _database.Execute("DELETE FROM Items");
 
         Assert.Equal(0L, _database.Scalar("SELECT COUNT(*) FROM Items"));
         Assert.Equal(0L, _database.Scalar("SELECT COUNT(*) FROM Reminders"));

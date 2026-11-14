@@ -42,6 +42,12 @@ internal sealed class ItemConfiguration : IEntityTypeConfiguration<Item>
         builder.HasKey(item => item.Id);
         builder.Property(item => item.Id).ValueGeneratedNever();
 
+        // A deleted item stays in the table but is left out of
+        // every query that does not ask for deleted items by name,
+        // with IgnoreQueryFilters. Nothing has to remember to skip
+        // it.
+        builder.HasQueryFilter(item => item.DeletedAt == null);
+
         builder.ComplexProperty(
             item => item.Recurrence,
             recurrence =>
@@ -57,7 +63,8 @@ internal sealed class ItemConfiguration : IEntityTypeConfiguration<Item>
                     .HasColumnName("RecurrenceAnchor");
             });
 
-        // A project that still has items cannot be deleted.
+        // The row of a project that still has items cannot be
+        // removed.
         builder
             .HasOne(item => item.Project)
             .WithMany()

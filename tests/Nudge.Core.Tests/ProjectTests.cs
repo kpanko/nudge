@@ -53,6 +53,37 @@ public class ProjectTests
     }
 
     [Fact]
+    public void Delete_MarksTheProjectOrContext_Once()
+    {
+        var at = new DateTimeOffset(2026, 11, 13, 8, 0, 0, TimeSpan.Zero);
+        var house = new Project("House");
+        var kitchen = new Project("Kitchen", house);
+        var phone = new Context("phone");
+        Assert.False(house.IsDeleted);
+        Assert.False(phone.IsDeleted);
+
+        house.Delete(at);
+        phone.Delete(at);
+
+        Assert.Equal(at, house.DeletedAt);
+        Assert.True(house.IsDeleted);
+        Assert.Equal(at, phone.DeletedAt);
+        Assert.True(phone.IsDeleted);
+
+        // A project does not know what is under it, so only the
+        // project itself is marked.
+        Assert.False(kitchen.IsDeleted);
+        Assert.Same(house, kitchen.Parent);
+
+        Assert.Throws<InvalidOperationException>(
+            () => house.Delete(at.AddHours(1)));
+        Assert.Throws<InvalidOperationException>(
+            () => phone.Delete(at.AddHours(1)));
+        Assert.Equal(at, house.DeletedAt);
+        Assert.Equal(at, phone.DeletedAt);
+    }
+
+    [Fact]
     public void Item_CanBelongToAProject()
     {
         var house = new Project("House");

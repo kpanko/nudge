@@ -37,7 +37,7 @@ deployed and tested. Status values: planned | in-progress | done
 - [x] Entities: item, project (nested), context, reminder
 - [x] Recurrence engine: fixed-schedule and after-completion modes
 - [x] EF Core + SQLite persistence and migrations
-- [ ] Change log, soft delete, undo
+- [x] Change log, soft delete, undo
 - [ ] REST endpoints with OpenAPI; dry-run and idempotency keys
 - [ ] API-token auth
 

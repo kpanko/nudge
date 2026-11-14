@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Nudge.Core;
 using Nudge.Web.Data;
 
 namespace Nudge.Web.Tests;
@@ -94,6 +95,27 @@ public sealed class StartupTests(NudgeWebFactory factory)
             // Do not leave the lock for the tests that follow.
             Sql("""DELETE FROM "__EFMigrationsLock";""");
         }
+    }
+
+    // The context as the app itself hands it out: it can be made
+    // without a clock being registered, and it records its saves.
+    [Fact]
+    public void App_RecordsWhatItSaves()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<NudgeDbContext>();
+        Assert.Null(db.Source);
+
+        db.Source = "startup test";
+        db.Contexts.Add(new Context("phone"));
+        db.SaveChanges();
+
+        var change = db.Changes.Single(c => c.Source == "startup test");
+        Assert.Equal("Contexts", Assert.Single(change.Entries).TableName);
+        Assert.InRange(
+            change.At,
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            DateTimeOffset.UtcNow.AddMinutes(1));
     }
 
     // Without this SQLite accepts rows that point at nothing.

@@ -122,6 +122,22 @@ public class ReminderTests
     }
 
     [Fact]
+    public void DeletedItem_DoesNotFire()
+    {
+        var item = new Item("Put the bins out");
+        item.SetDue(new DateOnly(2026, 11, 12));
+        var relative = Reminder.FromDue(TimeSpan.FromHours(9));
+        var absolute = Reminder.AtInstant(Local(2026, 11, 12, 16, 45, -5));
+        Assert.NotNull(relative.FireTime(item, NewYork));
+        Assert.NotNull(absolute.FireTime(item, NewYork));
+
+        item.Delete(Local(2026, 11, 11, 9, 0, -5));
+
+        Assert.Null(relative.FireTime(item, NewYork));
+        Assert.Null(absolute.FireTime(item, NewYork));
+    }
+
+    [Fact]
     public void Relative_OffsetOverAYear_IsRefused()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
