@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Nudge.Web;
+using Nudge.Web.Api;
 using Nudge.Web.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,7 +10,18 @@ var connectionString =
     ?? "Data Source=nudge.db";
 builder.Services.AddDbContext<NudgeDbContext>(
     options => options.UseSqlite(connectionString));
+
+// Checked here, before anything is served: a missing or wrong zone
+// stops the app rather than completing items on the wrong day.
+var ownerTimeZone = OwnerTimeZone.From(
+    builder.Configuration,
+    builder.Environment);
+builder.Services.AddSingleton(ownerTimeZone);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.ConfigureHttpJsonOptions(
+    options => JsonSetup.Apply(options.SerializerOptions));
 var app = builder.Build();
+app.Logger.LogInformation("Owner time zone: {Zone}", ownerTimeZone);
 
 // Create the database file up front, in WAL mode, so that
 // Litestream has something to replicate from the first start.
