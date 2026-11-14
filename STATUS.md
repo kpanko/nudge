@@ -34,7 +34,7 @@ throwaway local branches and ends with main identical to
 3. One squashed commit each, as was done for PR #1. After a
    squash-merge the next pull request shows conflicts in every file
    both touched (for #3: STATUS.md, DECISIONS.md and
-   `src/Nudge.Core/Project.cs`; for #4: eighteen files), because
+   `src/Nudge.Core/Project.cs`; for #4: nineteen files), because
    main then holds the same changes as a different commit. Bring
    the next branch up to date, then squash-merge it:
 
@@ -116,7 +116,9 @@ the production database at `/data/nudge.db`, which is empty so far.
     9. Context names are unique, ignoring the case of ASCII
        letters. This is a new rule.
     10. A project that still has items or projects under it cannot
-        be deleted.
+        be deleted. (PR #4 overtakes this, in 13 and 15: deleting
+        marks the project and everything under it, and only
+        removing its row is still refused.)
     11. Instants are stored in UTC; the offset they were created
         with is not kept.
     12. Existing files changed, beyond additions: `Project` has a
