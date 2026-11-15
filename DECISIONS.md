@@ -1000,3 +1000,57 @@ alarm fired 3.8 s late through forced deep Doze with the process
 dead. The real result must come from the phone.
 
 ---
+
+## 2026-11-15 A finished item cannot be given a repeat rule
+
+**Context:** CodeRabbit (PR #2) found that `Item.Repeat` on a
+finished item installed the rule and new dates but kept
+`CompletedAt`. The item then repeated on paper, could not be
+completed, and its reminders stayed silent. The API reached this
+through `PUT /api/items/{id}/repeat`.
+
+**Decision:** `Repeat` throws `InvalidOperationException` on a
+finished item, before changing anything, as `Complete` does. The API
+answers it with 409, dry runs included. To make a finished item
+repeat, undo its completion first.
+
+**Alternatives considered:** Reopening the item in `Repeat` (a second
+way to reopen, next to undo, which the 2026-11-13 decisions keep as
+the only one; and a reopening that is a side effect of setting a
+rule is easy to miss).
+
+**Consequences:** A finished repeating series cannot be restarted with
+a new rule without an undo. If the owner wants that, an explicit
+reopen operation is the place for it.
+
+---
+
+## 2026-11-15 Project foreign keys use ClientNoAction, not Restrict
+
+**Context:** CodeRabbit (PR #3) said that with `DeleteBehavior.Restrict`
+on the optional `Items.ProjectId` and `Projects.ParentId`, EF Core
+sets the key to null on tracked dependents when their project is
+removed. A test confirmed it: the tracked item lost its project, and
+the tracked child project its parent, in the change tracker. The
+save was still refused, by the change log's rule that project rows
+are never removed, so the database was not touched.
+
+**Decision:** Both relationships use `DeleteBehavior.ClientNoAction`:
+EF leaves tracked dependents alone and the database refuses the
+delete. Migration `KeepTrackedDependentsOnProjectRemoval` changes the
+foreign keys from `ON DELETE RESTRICT` to SQLite's default,
+`NO ACTION`, which also refuses a delete of a row still referenced
+(the foreign keys are not deferred). SQLite cannot alter a foreign
+key, so the migration rebuilds `Items` and `Projects`.
+
+**Alternatives considered:** Keeping `Restrict` and relying on the
+change log's rule (the tracked objects are still changed, and a
+caller that catches the refusal and saves again would save them).
+Turning off cascade timing for the whole context (it would change
+other relationships too).
+
+**Consequences:** One more migration, which copies both tables when
+it runs. A test upgrades a database with rows from the `ApiTokens`
+migration and checks that they come through.
+
+---

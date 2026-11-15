@@ -26,9 +26,10 @@
   - CI passed on all five (#5 at f495212, #6 at 33e8014; commits
     on `m1-api-auth` after that one change only this file).
     CodeRabbit reviewed #2 and #3 on 2026-11-14 and left three
-    comments that nobody has answered (see "Blockers / Open
-    Questions"). It skipped #4 to #7: a review there has to be
-    asked for by ticking "Trigger review" in its comment.
+    comments; they are fixed by commits on top of `m1-api-auth`,
+    not yet pushed (see "Blockers / Open Questions"). It skipped #4
+    to #7: a review there has to be asked for by ticking "Trigger
+    review" in its comment.
 - The owner did not follow the work of 2026-11-13, 2026-11-14 and
   2026-11-15 as it was done. Everything needed to review it is in
   this file, in the six pull request descriptions, and in the
@@ -131,8 +132,9 @@ That is unsafe; do not follow it. These instructions replace it.
    without auth.
 
 Merging to main starts a deploy that waits for approval of the
-`production` environment. Startup then applies the four migrations
-(the fourth, `ApiTokens`, comes with #6) to the production database
+`production` environment. Startup then applies the five migrations
+(the last two, `ApiTokens` and `KeepTrackedDependentsOnProjectRemoval`,
+come with #6) to the production database
 at `/data/nudge.db`, which is empty so far.
 
 ### Must be done by hand
@@ -245,9 +247,9 @@ at `/data/nudge.db`, which is empty so far.
 
 ## Next Up
 1. Review and merge PR #2, #3, #4, #5 and #6 (see above), set the
-   time zone secret, and approve the deploy. Decide first what to
-   do about CodeRabbit's three comments on #2 and #3 (see
-   "Blockers / Open Questions").
+   time zone secret, and approve the deploy. Push the CodeRabbit
+   fixes on `m1-api-auth` first, once their two choices are
+   confirmed (see "Blockers / Open Questions").
 2. Rehearse a restore from the Litestream backup. It needs the
    owner's Fly and Tigris credentials, and is best done before the
    Todoist import (M4) puts real data in.
@@ -271,31 +273,24 @@ at `/data/nudge.db`, which is empty so far.
   path inside the repository, but the old line stays in that
   branch's history. Squash-merging #6 keeps it off main; taking it
   out of the branch needs a force-push, which was not done.
-- CodeRabbit's three comments on #2 and #3 were noticed only at the
-  end of the 2026-11-15 session. They are unanswered and nothing
-  was changed for them. As read against `m1-api-auth`:
-  - #2, `src/Nudge.Core/Item.cs` line 175 (minor): `Repeat` on a
-    finished one-off item installs the rule but leaves
-    `CompletedAt` set, so the item repeats on paper, can no longer
-    be completed, and its reminders stay silent. The API can reach
-    this (set the repeat rule of a finished item); the change is
-    logged and can be undone. Refusing it, or reopening the item,
-    is a change in `Nudge.Core`, for the owner to choose.
-  - #3, `src/Nudge.Web/Data/ItemConfiguration.cs` line 65 and
-    `ProjectConfiguration.cs` line 23 (major): with
-    `DeleteBehavior.Restrict` on an optional foreign key, EF sets
-    the key to null on a tracked item or child project when its
-    project is removed, so the project row is deleted and the
-    assignment is lost, instead of the delete being refused. It
-    suggests `DeleteBehavior.ClientNoAction`. Nothing in `src`
-    removes a project, item or context row today (deletes are
-    soft), so no request can reach this; it is a trap for later
-    code, such as the import. The claim about EF was not tried
-    here.
-  The simplest place for a fix is a new commit on top of the stack
-  (`m1-api-auth`, or a pull request stacked on #6), not the two
-  branches the comments are on, which would have to be merged up
-  through every later branch.
+- CodeRabbit's three comments on #2 and #3 are fixed by two local
+  commits on `m1-api-auth` (2026-11-15), not pushed and not answered
+  on GitHub. Both choices are in DECISIONS.md under that date.
+  - #2, `Item.cs` line 175: `Repeat` on a finished item is now
+    refused (`InvalidOperationException`, 409 from the API, dry
+    runs too); undo the completion first. **Confirm:** refuse rather
+    than reopen.
+  - #3, `ItemConfiguration.cs` line 65 and `ProjectConfiguration.cs`
+    line 23: a test reproduced it. Removing a tracked project
+    nulled the tracked item's project and the child's parent in the
+    change tracker; the save was still refused by the change log's
+    no-removal rule, so the database was untouched. Both now use
+    `ClientNoAction`, and the new migration
+    `KeepTrackedDependentsOnProjectRemoval` rebuilds `Items` and
+    `Projects` (foreign keys `RESTRICT` to `NO ACTION`; a delete of
+    a referenced row is still refused). **Confirm:** the extra
+    migration is acceptable before the first deploy.
+  After pushing, reply to the three comments and let CI run on #6.
 - The choices below were made on 2026-11-13 without the owner. Each
   is explained in DECISIONS.md under that date. All are cheap to
   change now and get dearer once the API and the import are built
