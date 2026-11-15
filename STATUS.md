@@ -27,7 +27,7 @@
     on `m1-api-auth` after that one change only this file).
     CodeRabbit reviewed #2 and #3 on 2026-11-14 and left three
     comments; they are fixed by commits on top of `m1-api-auth`,
-    not yet pushed (see "Blockers / Open Questions"). It skipped #4
+    pushed to #6 (see "Blockers / Open Questions"). It skipped #4
     to #7: a review there has to be asked for by ticking "Trigger
     review" in its comment.
 - The owner did not follow the work of 2026-11-13, 2026-11-14 and
@@ -247,9 +247,9 @@ at `/data/nudge.db`, which is empty so far.
 
 ## Next Up
 1. Review and merge PR #2, #3, #4, #5 and #6 (see above), set the
-   time zone secret, and approve the deploy. Push the CodeRabbit
-   fixes on `m1-api-auth` first, once their two choices are
-   confirmed (see "Blockers / Open Questions").
+   time zone secret, and approve the deploy. Confirm the two
+   choices in the CodeRabbit fixes on `m1-api-auth` first (see
+   "Blockers / Open Questions").
 2. Rehearse a restore from the Litestream backup. It needs the
    owner's Fly and Tigris credentials, and is best done before the
    Todoist import (M4) puts real data in.
@@ -273,9 +273,10 @@ at `/data/nudge.db`, which is empty so far.
   path inside the repository, but the old line stays in that
   branch's history. Squash-merging #6 keeps it off main; taking it
   out of the branch needs a force-push, which was not done.
-- CodeRabbit's three comments on #2 and #3 are fixed by two local
-  commits on `m1-api-auth` (2026-11-15), not pushed and not answered
-  on GitHub. Both choices are in DECISIONS.md under that date.
+- CodeRabbit's three comments on #2 and #3 are fixed by two
+  commits on `m1-api-auth` (2026-11-15), pushed to #6 but not
+  answered on GitHub. Both choices are in DECISIONS.md under that
+  date.
   - #2, `Item.cs` line 175: `Repeat` on a finished item is now
     refused (`InvalidOperationException`, 409 from the API, dry
     runs too); undo the completion first. **Confirm:** refuse rather
@@ -290,7 +291,9 @@ at `/data/nudge.db`, which is empty so far.
     `Projects` (foreign keys `RESTRICT` to `NO ACTION`; a delete of
     a referenced row is still refused). **Confirm:** the extra
     migration is acceptable before the first deploy.
-  After pushing, reply to the three comments and let CI run on #6.
+  Still to do: reply to the three comments on #2 and #3. The new
+  migration was tested on in-memory SQLite only, not on a file
+  database.
 - The choices below were made on 2026-11-13 without the owner. Each
   is explained in DECISIONS.md under that date. All are cheap to
   change now and get dearer once the API and the import are built
