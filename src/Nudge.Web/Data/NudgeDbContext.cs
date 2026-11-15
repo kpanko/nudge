@@ -81,6 +81,10 @@ public sealed class NudgeDbContext(
     public DbSet<IdempotencyRecord> IdempotencyRecords =>
         Set<IdempotencyRecord>();
 
+    /// <summary>The tokens the API accepts, and the revoked ones.
+    /// Not part of the change log.</summary>
+    public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
+
     /// <summary>
     /// Who is making the changes saved through this context: for
     /// example "web", or the name of an API token. It is recorded
@@ -297,6 +301,7 @@ public sealed class NudgeDbContext(
         modelBuilder.ApplyConfiguration(new ChangeEntryConfiguration());
         modelBuilder.ApplyConfiguration(
             new IdempotencyRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new ApiTokenConfiguration());
     }
 
     /// <summary>

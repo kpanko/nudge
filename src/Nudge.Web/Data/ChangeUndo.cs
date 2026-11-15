@@ -409,7 +409,8 @@ internal sealed class ChangeUndo(NudgeDbContext db)
         if (type is null
             || type.ClrType == typeof(Change)
             || type.ClrType == typeof(ChangeEntry)
-            || type.ClrType == typeof(IdempotencyRecord))
+            || type.ClrType == typeof(IdempotencyRecord)
+            || type.ClrType == typeof(ApiToken))
         {
             return null;
         }

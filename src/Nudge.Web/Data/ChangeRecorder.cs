@@ -45,6 +45,14 @@ internal static class ChangeRecorder
                 continue;
             }
 
+            // Security state, not the owner's data. If it were
+            // logged, the change log would hold token hashes, and an
+            // undo could bring a revoked token back.
+            if (tracked.Entity is ApiToken)
+            {
+                continue;
+            }
+
             var entry = tracked.State switch
             {
                 EntityState.Added => Added(tracked),
