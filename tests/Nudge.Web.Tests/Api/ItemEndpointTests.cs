@@ -69,11 +69,18 @@ public sealed class ItemEndpointTests : IDisposable
         Assert.Equal(
             """{"date":"2026-11-20","time":"14:30:00"}""",
             item["due"]!.ToJsonString());
+        // Reminders come in the order of their ids, which is not
+        // the order they were made in within the same millisecond.
         var reminders = item["reminders"]!.AsArray();
-        Assert.Equal(-30, reminders[0]!["offsetMinutes"]!.GetValue<int>());
-        Assert.Equal(
-            "2026-11-19T14:00:00Z",
-            reminders[1]!["at"]!.GetValue<string>());
+        Assert.Equal(2, reminders.Count);
+        Assert.Contains(
+            reminders,
+            r => r!["offsetMinutes"]?.GetValue<int>() == -30
+                && r["at"] is null);
+        Assert.Contains(
+            reminders,
+            r => r!["at"]?.GetValue<string>() == "2026-11-19T14:00:00Z"
+                && r["offsetMinutes"] is null);
 
         Assert.Equal(
             item.ToJsonString(),
