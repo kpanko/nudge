@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Nudge.Web.Auth;
 using Nudge.Web.Data;
@@ -9,7 +11,8 @@ namespace Nudge.Web.Tests;
 
 /// <summary>
 /// The <c>token</c> command line, run as the app runs it, on a
-/// database file of its own that it creates itself.
+/// database file of its own, made the way the app's startup makes
+/// it. The command itself never creates or migrates a database.
 /// </summary>
 public sealed class TokenCommandTests : IDisposable
 {
@@ -20,7 +23,19 @@ public sealed class TokenCommandTests : IDisposable
         Path.GetTempPath(),
         $"nudge-token-test-{Guid.NewGuid():N}.db");
 
+    /// <summary>A path where there is no database.</summary>
+    private readonly string _missing = Path.Combine(
+        Path.GetTempPath(),
+        $"nudge-token-test-{Guid.NewGuid():N}",
+        "nudge.db");
+
     private readonly FixedClock _clock = new(Now);
+
+    public TokenCommandTests()
+    {
+        using var db = Context(_path);
+        DatabaseSetup.Prepare($"Data Source={_path}", db);
+    }
 
     public void Dispose()
     {
@@ -38,7 +53,22 @@ public sealed class TokenCommandTests : IDisposable
         }
     }
 
-    private async Task<(int Exit, string Output, string Error)> RunAsync(
+    private static NudgeDbContext Context(string path)
+    {
+        return new NudgeDbContext(
+            new DbContextOptionsBuilder<NudgeDbContext>()
+                .UseSqlite($"Data Source={path}")
+                .Options);
+    }
+
+    private Task<(int Exit, string Output, string Error)> RunAsync(
+        params string[] args)
+    {
+        return RunOnAsync(_path, args);
+    }
+
+    private async Task<(int Exit, string Output, string Error)> RunOnAsync(
+        string path,
         params string[] args)
     {
         // No time zone: the command line does not need one.
@@ -46,7 +76,7 @@ public sealed class TokenCommandTests : IDisposable
             .AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:Nudge"] = $"Data Source={_path}",
+                    ["ConnectionStrings:Nudge"] = $"Data Source={path}",
                 })
             .Build();
         using var output = new StringWriter();
@@ -118,10 +148,8 @@ public sealed class TokenCommandTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_OnAFreshDatabase_PrintsOnlyTheToken()
+    public async Task Create_PrintsOnlyTheToken()
     {
-        Assert.False(File.Exists(_path));
-
         var (exit, output, error) = await RunAsync("create", "planning-agent");
 
         Assert.Equal(0, exit);
@@ -129,17 +157,80 @@ public sealed class TokenCommandTests : IDisposable
             new Regex(@"\Anudge_[A-Za-z0-9_-]{43}\r?\n\z"),
             output);
         Assert.StartsWith($"Database: {_path}", error);
-        Assert.Contains("planning-agent", error);
         Assert.Contains("api:planning-agent", error);
+    }
 
-        // Brought up to date as the app's startup does.
-        Assert.True(File.Exists(_path));
-        Assert.Equal("wal", Scalar("PRAGMA journal_mode;"));
-        var options = new DbContextOptionsBuilder<NudgeDbContext>()
-            .UseSqlite($"Data Source={_path}")
-            .Options;
-        await using var db = new NudgeDbContext(options);
-        Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+    // A token made into a database the app does not use would look
+    // fine and never work; the command refuses instead.
+    [Theory]
+    [InlineData("create", "planning-agent")]
+    [InlineData("list")]
+    [InlineData("revoke", "planning-agent")]
+    public async Task MissingDatabase_IsRefused_AndNotCreated(
+        params string[] args)
+    {
+        var folder = Path.GetDirectoryName(_missing)!;
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var (exit, output, error) = await RunOnAsync(_missing, args);
+
+            Assert.Equal(TokenCommand.Refused, exit);
+            Assert.Equal("", output);
+            Assert.StartsWith($"Database: {_missing}", error);
+            Assert.Contains($"There is no database at {_missing}", error);
+            Assert.Contains("ConnectionStrings__Nudge", error);
+            Assert.Empty(Directory.GetFileSystemEntries(folder));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    // Only the app migrates, when it starts; the command must not
+    // run migrations beside it.
+    [Theory]
+    [InlineData("create", "planning-agent")]
+    [InlineData("list")]
+    [InlineData("revoke", "planning-agent")]
+    public async Task DatabaseWithAPendingMigration_IsRefused_Untouched(
+        params string[] args)
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"nudge-token-test-{Guid.NewGuid():N}.db");
+        try
+        {
+            using (var db = Context(path))
+            {
+                // Every migration but the newest.
+                var all = db.Database.GetMigrations().ToList();
+                db.GetService<IMigrator>().Migrate(all[^2]);
+            }
+
+            SqliteConnection.ClearAllPools();
+            var before = File.ReadAllBytes(path);
+
+            var (exit, output, error) = await RunOnAsync(path, args);
+
+            Assert.Equal(TokenCommand.Refused, exit);
+            Assert.Equal("", output);
+            Assert.Contains("not up to date", error);
+            Assert.Contains("Start the app", error);
+            SqliteConnection.ClearAllPools();
+            Assert.Equal(before, File.ReadAllBytes(path));
+            Assert.False(File.Exists(path + "-wal"));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
+            {
+                File.Delete(path + suffix);
+            }
+        }
     }
 
     [Fact]

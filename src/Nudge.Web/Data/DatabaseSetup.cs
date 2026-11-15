@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Nudge.Web.Data;
 
 /// <summary>
-/// Where the database is, and how it is brought up to date. Shared
-/// by the web app, when it starts, and by the command line, so both
-/// find the same database and leave it in the same state.
+/// Where the database is, and how the app brings it up to date when
+/// it starts. The token command line finds the database the same
+/// way, but never prepares it.
 /// </summary>
 public static class DatabaseSetup
 {
@@ -40,10 +40,9 @@ public static class DatabaseSetup
 
         // While it migrates, EF Core holds a lock: a row in this table.
         // A process killed at that moment leaves the row behind, and
-        // the next start would wait for it for ever. Only one process
-        // migrates this database at a time (the token command line
-        // only comes here when migrations are pending, which they
-        // are not while the app runs), so a lock found now is such a
+        // the next start would wait for it for ever. Only the app
+        // migrates this database (the token command line refuses one
+        // that is not up to date), so a lock found now is such a
         // leftover. EF Core creates the table again when it needs it.
         db.Database.ExecuteSqlRaw(
             "DROP TABLE IF EXISTS \"__EFMigrationsLock\";");

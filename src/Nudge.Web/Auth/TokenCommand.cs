@@ -48,11 +48,13 @@ public static class TokenCommand
     }
 
     /// <summary>
-    /// Opens the database the configuration names, brings it up to
-    /// date if it is behind, and carries out the command. Only the
-    /// new token, from <c>create</c>, and the list, from
-    /// <c>list</c>, go to <paramref name="output"/>; everything else
-    /// goes to <paramref name="error"/>.
+    /// Opens the database the configuration names and carries out
+    /// the command. The database must already exist and be up to
+    /// date: this never creates or migrates one, so that a token
+    /// cannot land in a stray database, and never runs migrations
+    /// beside the app. Only the new token, from <c>create</c>, and
+    /// the list, from <c>list</c>, go to <paramref name="output"/>;
+    /// everything else goes to <paramref name="error"/>.
     /// </summary>
     /// <returns>The exit code: 0, <see cref="Refused"/> or
     /// <see cref="UsageError"/>.</returns>
@@ -74,26 +76,41 @@ public static class TokenCommand
             return UsageError;
         }
 
-        var connectionString = DatabaseSetup.ConnectionString(configuration);
+        // ReadWrite, not SQLite's default ReadWriteCreate: opening a
+        // file that is not there fails instead of creating it.
+        var connection = new SqliteConnectionStringBuilder(
+            DatabaseSetup.ConnectionString(configuration))
+        {
+            Mode = SqliteOpenMode.ReadWrite,
+        };
+        var file = Path.GetFullPath(connection.DataSource);
 
-        // Said first, so that a token made in the wrong database
-        // (with the setting missing, a new nudge.db where the command
-        // runs) does not go unnoticed.
-        await error.WriteLineAsync(
-            "Database: "
-            + new SqliteConnectionStringBuilder(connectionString).DataSource);
+        // Said first, so that the database used is always on screen.
+        await error.WriteLineAsync($"Database: {file}");
+        if (!File.Exists(file))
+        {
+            await error.WriteLineAsync(
+                $"There is no database at {file}. Set"
+                + " ConnectionStrings__Nudge to the app's database"
+                + " (the image sets \"Data Source=/data/nudge.db\"),"
+                + " or start the app once to create it. Nothing was"
+                + " created.");
+            return Refused;
+        }
+
         var options = new DbContextOptionsBuilder<NudgeDbContext>()
-            .UseSqlite(connectionString)
+            .UseSqlite(connection.ConnectionString)
             .Options;
         await using var db = new NudgeDbContext(options, clock);
 
-        // On a database the app has already brought up to date, as
-        // in production while it runs, nothing is pending and this
-        // leaves the database alone. On a new or older one it does
-        // what the app's startup does.
+        // Only the app migrates, when it starts.
         if ((await db.Database.GetPendingMigrationsAsync()).Any())
         {
-            DatabaseSetup.Prepare(connectionString, db);
+            await error.WriteLineAsync(
+                "The database is not up to date. Start the app, or"
+                + " wait for it to finish starting, and try again."
+                + " Nothing was changed.");
+            return Refused;
         }
 
         try
