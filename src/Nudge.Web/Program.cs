@@ -20,6 +20,7 @@ builder.Services.AddSingleton(ownerTimeZone);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.ConfigureHttpJsonOptions(
     options => JsonSetup.Apply(options.SerializerOptions));
+builder.Services.AddNudgeApi();
 var app = builder.Build();
 app.Logger.LogInformation("Owner time zone: {Zone}", ownerTimeZone);
 
@@ -52,6 +53,11 @@ using (var scope = app.Services.CreateScope())
     database.Migrate();
 }
 
+// Anything that goes wrong is answered with problem details (RFC
+// 9457), including 404s and 405s from routing.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 app.MapGet(
     "/healthz",
     () =>
@@ -63,6 +69,8 @@ app.MapGet(
         command.ExecuteScalar();
         return Results.Ok(new { status = "ok" });
     });
+
+app.MapNudgeApi();
 
 app.Run();
 
