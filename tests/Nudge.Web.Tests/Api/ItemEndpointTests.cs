@@ -316,6 +316,29 @@ public sealed class ItemEndpointTests : IDisposable
         Assert.NotEmpty(reply.Error("start"));
     }
 
+    // A finished item that took a rule would repeat on paper, but
+    // could not be completed and its reminders would not fire.
+    [Theory]
+    [InlineData("")]
+    [InlineData("?dryRun=true")]
+    public async Task Repeat_OnAFinishedItem_IsRefused(string query)
+    {
+        var id = Id(
+            await _api.CreateItemAsync(
+                """{"title":"Post a card","due":{"date":"2026-11-18"}}"""));
+        await _api.WriteAsync("POST", $"/api/items/{id}/complete", "{}");
+        var before = _api.Everything();
+
+        var reply = await _api.SendAsync(
+            "PUT",
+            $"/api/items/{id}/repeat{query}",
+            """{"rule":"FREQ=WEEKLY;BYDAY=FR","mode":"fixedSchedule"}""");
+
+        Assert.Equal(HttpStatusCode.Conflict, reply.Status);
+        Assert.Contains("completed", reply.Body);
+        Assert.Equal(before, _api.Everything());
+    }
+
     [Fact]
     public async Task Complete_ARepeatingItem_WithoutNamingTheOccurrence_IsRefused()
     {

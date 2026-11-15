@@ -162,6 +162,10 @@ public sealed class Item
     /// no occurrence on or after <paramref name="start"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="mode"/> is not one of the modes.</exception>
+    /// <exception cref="InvalidOperationException">The item is
+    /// finished. It would keep <see cref="CompletedAt"/>, so it could
+    /// not be completed and its reminders would not fire; undoing the
+    /// completion is how it is reopened.</exception>
     public void Repeat(
         RecurrenceRule rule,
         RecurrenceMode mode,
@@ -169,6 +173,12 @@ public sealed class Item
     {
         ArgumentNullException.ThrowIfNull(rule);
         Defined(mode, nameof(mode));
+        if (IsCompleted)
+        {
+            throw new InvalidOperationException(
+                "The item is completed; undo the completion before"
+                + " making it repeat.");
+        }
 
         var first = mode == RecurrenceMode.FixedSchedule
             ? rule.NextOnOrAfter(start, start)

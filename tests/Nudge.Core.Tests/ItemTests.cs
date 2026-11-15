@@ -204,6 +204,48 @@ public class ItemTests
     }
 
     [Fact]
+    public void Repeat_OnAFinishedOneOffItem_IsRefused()
+    {
+        var item = new Item("Buy a ladder");
+        item.SetDue(Day(2026, 11, 12), new TimeOnly(9, 0));
+        item.Complete(November(12, 8), NewYork);
+
+        Assert.Throws<InvalidOperationException>(
+            () => item.Repeat(
+                RecurrenceRule.Parse("FREQ=WEEKLY;BYDAY=FR"),
+                RecurrenceMode.FixedSchedule,
+                Day(2026, 11, 13)));
+
+        Assert.Null(item.Recurrence);
+        Assert.Null(item.OccurrenceDate);
+        Assert.Equal(Day(2026, 11, 12), item.DueDate);
+        Assert.Equal(new TimeOnly(9, 0), item.DueTime);
+        Assert.Equal(November(12, 8), item.CompletedAt);
+    }
+
+    [Fact]
+    public void Repeat_OnASeriesThatHasEnded_IsRefused()
+    {
+        var item = Repeating(
+            "FREQ=DAILY;UNTIL=20261112",
+            RecurrenceMode.FixedSchedule,
+            Day(2026, 11, 12));
+        item.Complete(November(12, 8), NewYork);
+        var recurrence = item.Recurrence;
+
+        Assert.Throws<InvalidOperationException>(
+            () => item.Repeat(
+                RecurrenceRule.Parse("FREQ=DAILY"),
+                RecurrenceMode.AfterCompletion,
+                Day(2026, 11, 20)));
+
+        Assert.Same(recurrence, item.Recurrence);
+        Assert.Equal(Day(2026, 11, 12), item.OccurrenceDate);
+        Assert.Equal(Day(2026, 11, 12), item.DueDate);
+        Assert.Equal(November(12, 8), item.CompletedAt);
+    }
+
+    [Fact]
     public void Complete_LastOccurrence_FinishesTheItem()
     {
         var item = Repeating(
