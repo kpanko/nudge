@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.OpenApi;
@@ -18,6 +19,10 @@ internal static class OpenApiSetup
 {
     public const string DocumentPath = "/openapi/v1.json";
 
+    /// <summary>The name of the security scheme in the document.
+    /// </summary>
+    public const string SecurityScheme = "bearer";
+
     public static IServiceCollection AddNudgeOpenApi(
         this IServiceCollection services)
     {
@@ -28,6 +33,7 @@ internal static class OpenApiSetup
                 options.AddOperationTransformer(DescribeRoute);
                 options.AddOperationTransformer(DescribeQuery);
                 options.AddOperationTransformer(DescribeWrite);
+                options.AddOperationTransformer(DescribeSecurity);
                 options.AddSchemaTransformer(DescribeInstant);
             });
     }
@@ -44,7 +50,54 @@ internal static class OpenApiSetup
             + " /api/changes/{id}/undo). Every write takes"
             + " ?dryRun=true and an Idempotency-Key header. Requests"
             + " are read strictly: an unknown query parameter or"
-            + " property is a 400, never ignored.";
+            + " property is a 400, never ignored. Every request to"
+            + " /api needs an API token, sent as Authorization: Bearer"
+            + " <token>.";
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??=
+            new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes[SecurityScheme] =
+            BearerScheme();
+        return Task.CompletedTask;
+    }
+
+    private static OpenApiSecurityScheme BearerScheme()
+    {
+        return new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            Description =
+                "An API token, made with the token command line"
+                + " (dotnet Nudge.Web.dll token create <name>). Without"
+                + " an active one every request is 401.",
+        };
+    }
+
+    /// <summary>
+    /// Every operation that is not anonymous needs the bearer token,
+    /// as the app's fallback policy does, and documents the 401.
+    /// </summary>
+    private static Task DescribeSecurity(
+        OpenApiOperation operation,
+        OpenApiOperationTransformerContext context,
+        CancellationToken cancellationToken)
+    {
+        if (context.Description.ActionDescriptor.EndpointMetadata
+            .OfType<IAllowAnonymous>()
+            .Any())
+        {
+            return Task.CompletedTask;
+        }
+
+        operation.Security ??= [];
+        operation.Security.Add(
+            new OpenApiSecurityRequirement
+            {
+                [new OpenApiSecuritySchemeReference(
+                    SecurityScheme,
+                    context.Document)] = [],
+            });
         return Task.CompletedTask;
     }
 

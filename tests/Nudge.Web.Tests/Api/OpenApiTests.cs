@@ -42,6 +42,10 @@ public sealed class OpenApiTests : IDisposable
             },
         };
 
+    /// <summary>The name of the security scheme in the document.
+    /// </summary>
+    private const string BearerScheme = "bearer";
+
     private readonly Api _api = new();
 
     public void Dispose()
@@ -111,6 +115,18 @@ public sealed class OpenApiTests : IDisposable
                 $"{method} {path} has no summary.");
 
             var responses = operation["responses"]!.AsObject();
+
+            // Every request to the API needs the token.
+            Assert.True(
+                responses.ContainsKey("401"),
+                $"{method} {path} does not document 401.");
+            var security = operation["security"]?.AsArray();
+            Assert.True(
+                security is [{ } requirement]
+                    && requirement.AsObject().ContainsKey(
+                        BearerScheme),
+                $"{method} {path} does not require the token.");
+
             var success = responses
                 .Where(r => r.Key.StartsWith('2'))
                 .Select(r => r.Value!)
@@ -145,6 +161,49 @@ public sealed class OpenApiTests : IDisposable
                 success,
                 r => Assert.NotNull(r["headers"]?["Idempotent-Replayed"]));
         }
+    }
+
+    // The expectations come from the app: an endpoint carries the
+    // token requirement exactly when it does not allow anonymous
+    // requests.
+    [Fact]
+    public async Task Document_RequiresTheTokenWhereTheAppDoes()
+    {
+        var document = await DocumentAsync();
+        var scheme =
+            document["components"]!["securitySchemes"]![BearerScheme]!;
+        Assert.Equal("http", scheme["type"]!.GetValue<string>());
+        Assert.Equal("bearer", scheme["scheme"]!.GetValue<string>());
+
+        var endpoints = _api.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints
+            .OfType<RouteEndpoint>()
+            .ToList();
+        var described = 0;
+        foreach (var endpoint in endpoints)
+        {
+            var path = DocumentPath(endpoint.RoutePattern.RawText!);
+            var method = endpoint.Metadata
+                .GetMetadata<HttpMethodMetadata>()!
+                .HttpMethods
+                .Single()
+                .ToLowerInvariant();
+            if (document["paths"]![path]?[method] is not { } operation)
+            {
+                continue;
+            }
+
+            described++;
+            var anonymous = endpoint.Metadata
+                .GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>()
+                is not null;
+            Assert.True(
+                anonymous == operation["security"] is null,
+                $"{method} {path}: anonymous is {anonymous}.");
+        }
+
+        Assert.True(described > 20, $"Only {described} described.");
     }
 
     /// <summary>Every endpoint of the API, as the app maps it.

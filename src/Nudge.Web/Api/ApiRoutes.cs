@@ -15,15 +15,24 @@ public static class ApiRoutes
     }
 
     /// <summary>
-    /// Maps every endpoint of the API under one route group. This
-    /// group is the one place to attach authentication (the API-token
-    /// task): everything under <see cref="Prefix"/> is the API, and
-    /// nothing else is.
+    /// Maps every endpoint of the API under one route group:
+    /// everything under <see cref="Prefix"/> is the API, and nothing
+    /// else is. Every endpoint needs an API token, through the
+    /// app's fallback policy (see
+    /// <see cref="Auth.ApiTokenAuthentication"/>), so none of them
+    /// may allow anonymous requests.
     /// </summary>
     public static RouteGroupBuilder MapNudgeApi(
         this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup(Prefix);
+
+        // What every request without an active token is answered.
+        api.WithMetadata(
+            new ProducesResponseTypeMetadata(
+                StatusCodes.Status401Unauthorized,
+                typeof(Microsoft.AspNetCore.Mvc.ProblemDetails),
+                ["application/problem+json"]));
         ItemEndpoints.Map(api);
         ProjectEndpoints.Map(api);
         ContextEndpoints.Map(api);
