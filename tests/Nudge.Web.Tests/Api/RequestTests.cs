@@ -158,6 +158,29 @@ public sealed class RequestTests : IDisposable
         Assert.Single((await _api.GetAsync("/api/items")).AsArray());
     }
 
+    // A dry run with a key the real request already used is that
+    // request again: it gets the kept answer, with the real
+    // request's status and "dryRun": false, and does nothing.
+    [Fact]
+    public async Task Key_UsedByTheRealRequest_ThenDryRun_GetsTheKeptAnswer()
+    {
+        var real = await _api.SendAsync("POST", "/api/items", Plumber, "key-1");
+        Assert.Equal(HttpStatusCode.Created, real.Status);
+        var after = _api.Everything();
+
+        var dry = await _api.SendAsync(
+            "POST",
+            "/api/items?dryRun=true",
+            Plumber,
+            "key-1");
+
+        Assert.Equal(HttpStatusCode.Created, dry.Status);
+        Assert.True(dry.Replayed);
+        Assert.False(dry.Json["dryRun"]!.GetValue<bool>());
+        Assert.Equal(real.Body, dry.Body);
+        Assert.Equal(after, _api.Everything());
+    }
+
     // A failed request changes nothing and leaves no record, so the
     // client can put it right and send it again with the same key.
     [Fact]

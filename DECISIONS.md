@@ -533,7 +533,8 @@ resource after the write (the item for its due date, rule, contexts
 and reminders; the undone change for an undo; null after a delete).
 `?dryRun=true` runs the same code and saves, so the database's
 constraints are checked, then rolls the transaction back: nothing is
-kept, the answer is 200, `change.id` is null, and ids of anything
+kept, the answer is 200 (unless it replays a kept answer; see the
+entry on idempotency keys), `change.id` is null, and ids of anything
 created are not real. Creates answer 201 and send no `Location`, so
 a replay can repeat the answer exactly.
 

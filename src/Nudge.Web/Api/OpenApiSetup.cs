@@ -256,11 +256,16 @@ internal static class OpenApiSetup
                 Required = false,
                 Description =
                     "true to carry the write out and roll it back:"
-                    + " nothing is saved, and the response (always 200)"
-                    + " shows what would have been, with change.id null."
-                    + " Ids of anything a dry run creates are not real."
-                    + " Only true or false; any other query parameter"
-                    + " is refused.",
+                    + " nothing is saved, and the response, 200, shows"
+                    + " what would have been, with dryRun true and"
+                    + " change.id null. Ids of anything a dry run"
+                    + " creates are not real. One exception: with an"
+                    + " Idempotency-Key already used for this request,"
+                    + " the kept response of the real request is"
+                    + " returned instead, with its own status, dryRun"
+                    + " false and Idempotent-Replayed: true, and"
+                    + " nothing is done. Only true or false; any other"
+                    + " query parameter is refused.",
                 Schema = new OpenApiSchema { Type = JsonSchemaType.Boolean },
             });
         operation.Parameters.Add(
@@ -278,7 +283,9 @@ internal static class OpenApiSetup
                     + " method, path or body is refused with 422. A"
                     + " request that fails is not kept. A dry run keeps"
                     + " nothing, and counts as the same request as the"
-                    + " real one.",
+                    + " real one: a dry run with a key the real request"
+                    + " already used gets the real request's kept"
+                    + " response (dryRun false), not a new dry run.",
                 Schema = new OpenApiSchema
                 {
                     Type = JsonSchemaType.String,

@@ -203,7 +203,9 @@ far.
         null when nothing changed. `data` is null after a delete,
         the item after a change to its due date, rule, contexts or
         reminders, and the undone change after an undo. Creates are
-        201 without `Location`; dry runs are 200.
+        201 without `Location`; dry runs are 200, unless their key
+        was already used by the real request, whose kept answer is
+        then replayed.
     25. A dry run carries the write out, saves, and rolls back.
     26. Idempotency keys are kept in a table of their own,
         `IdempotencyRecords`, not in the nullable column on
