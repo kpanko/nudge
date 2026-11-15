@@ -48,11 +48,30 @@ internal static class ItemEndpoints
             .WithDescription(
                 "Open items, unless includeCompleted=true. Filters:"
                 + " list, projectId, contextId.")
-            .ProducesValidationProblem();
+            .Takes(
+                new QueryParameter(
+                    "list",
+                    typeof(ItemState),
+                    "Only items on this GTD list."),
+                new QueryParameter(
+                    "projectId",
+                    typeof(Guid),
+                    "Only items in this project; not those in the"
+                    + " projects under it."),
+                new QueryParameter(
+                    "contextId",
+                    typeof(Guid),
+                    "Only items with this context."),
+                new QueryParameter(
+                    "includeCompleted",
+                    typeof(bool),
+                    "true to include items finished for good."
+                    + " Default false."));
         api.MapGet(One, GetAsync)
             .WithName("GetItem")
             .Produces<ItemView>()
             .WithSummary("Get an item")
+            .Takes()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         api.MapWrite<ItemCreate, ItemView>(
@@ -149,12 +168,7 @@ internal static class ItemEndpoints
     {
         try
         {
-            var query = new Query(
-                http.Request.Query,
-                "list",
-                "projectId",
-                "contextId",
-                "includeCompleted");
+            var query = new Query(http);
             var list = query.Enum<ItemState>("list");
             var projectId = query.Guid("projectId");
             var contextId = query.Guid("contextId");
@@ -189,7 +203,7 @@ internal static class ItemEndpoints
     {
         try
         {
-            _ = new Query(http.Request.Query);
+            _ = new Query(http);
             var item = await FindAsync(db, id, http.RequestAborted);
             return TypedResults.Ok(ItemView.Of(item));
         }

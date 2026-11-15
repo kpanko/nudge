@@ -147,6 +147,174 @@ public sealed class OpenApiTests : IDisposable
         }
     }
 
+    /// <summary>Every endpoint of the API, as the app maps it.
+    /// </summary>
+    private List<RouteEndpoint> ApiEndpoints()
+    {
+        return _api.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(
+                e => e.RoutePattern.RawText!.StartsWith(
+                    ApiRoutes.Prefix + "/",
+                    StringComparison.Ordinal))
+            .ToList();
+    }
+
+    /// <summary>The schema type and format a route constraint or a
+    /// declared query parameter type stands for.</summary>
+    private static (string Type, string? Format) Expected(string kind)
+    {
+        return kind switch
+        {
+            "guid" or nameof(Guid) => ("string", "uuid"),
+            "long" or nameof(Int64) => ("integer", "int64"),
+            nameof(Boolean) => ("boolean", null),
+            _ => ("string", null),
+        };
+    }
+
+    private static string Sample(Type type)
+    {
+        if (type.IsEnum)
+        {
+            return Query.Names(type).First();
+        }
+
+        return type == typeof(bool) ? "true"
+            : type == typeof(Guid) ? Guid.NewGuid().ToString()
+            : type == typeof(long) ? "1"
+            : throw new InvalidOperationException(type.Name);
+    }
+
+    /// <summary>A path for the route, with made-up values that fit
+    /// its constraints.</summary>
+    private static string PathFor(RouteEndpoint endpoint)
+    {
+        var path = endpoint.RoutePattern.RawText!;
+        foreach (var parameter in endpoint.RoutePattern.Parameters)
+        {
+            var kind = parameter.ParameterPolicies.Single().Content;
+            path = path.Replace(
+                $"{{{parameter.Name}:{kind}}}",
+                kind == "long" ? "1" : Guid.NewGuid().ToString(),
+                StringComparison.Ordinal);
+        }
+
+        return path;
+    }
+
+    // The expectations come from the app: the parameters in each
+    // route, and the query parameters each read declares, which are
+    // also the ones its parser accepts.
+    [Fact]
+    public async Task Document_DescribesEveryRouteAndQueryParameter()
+    {
+        var document = await DocumentAsync();
+        foreach (var endpoint in ApiEndpoints())
+        {
+            var path = DocumentPath(endpoint.RoutePattern.RawText!);
+            var method = endpoint.Metadata
+                .GetMetadata<HttpMethodMetadata>()!
+                .HttpMethods
+                .Single();
+            var operation = document["paths"]![path]![
+                method.ToLowerInvariant()]!;
+            var where = $"{method} {path}";
+            var parameters = operation["parameters"]?.AsArray()
+                .Select(p => p!)
+                .ToList() ?? [];
+
+            foreach (var route in endpoint.RoutePattern.Parameters)
+            {
+                var documented = parameters.SingleOrDefault(
+                    p => p["name"]!.GetValue<string>() == route.Name
+                        && p["in"]!.GetValue<string>() == "path");
+                Assert.True(
+                    documented is not null,
+                    $"{where}: {route.Name} is not a path parameter.");
+                Assert.True(
+                    documented["required"]!.GetValue<bool>(),
+                    $"{where}: {route.Name} is not required.");
+                var (type, format) = Expected(
+                    route.ParameterPolicies.Single().Content!);
+                Assert.Equal(
+                    type,
+                    documented["schema"]!["type"]!.GetValue<string>());
+                Assert.Equal(
+                    format,
+                    documented["schema"]!["format"]?.GetValue<string>());
+            }
+
+            Assert.DoesNotContain(
+                parameters,
+                p => p["in"]!.GetValue<string>() == "path"
+                    && endpoint.RoutePattern.GetParameter(
+                        p["name"]!.GetValue<string>()) is null);
+
+            var query = parameters
+                .Where(p => p["in"]!.GetValue<string>() == "query")
+                .ToDictionary(p => p["name"]!.GetValue<string>());
+            if (method != "GET")
+            {
+                Assert.Equal(["dryRun"], query.Keys);
+                continue;
+            }
+
+            var declared = endpoint.Metadata
+                .GetMetadata<QueryParameters>();
+            Assert.True(
+                declared is not null,
+                $"{where} does not declare its query parameters.");
+            Assert.Equal(
+                declared.All.Select(p => p.Name).Order(StringComparer.Ordinal),
+                query.Keys.Order(StringComparer.Ordinal));
+            Assert.True(
+                operation["responses"]!.AsObject().ContainsKey("400"),
+                $"{where} does not document 400.");
+
+            foreach (var parameter in declared.All)
+            {
+                var schema = query[parameter.Name]["schema"]!;
+                Assert.False(
+                    string.IsNullOrEmpty(
+                        query[parameter.Name]["description"]
+                            ?.GetValue<string>()),
+                    $"{where}: {parameter.Name} has no description.");
+                if (parameter.Type.IsEnum)
+                {
+                    Assert.Equal(
+                        Query.Names(parameter.Type),
+                        schema["enum"]!.AsArray()
+                            .Select(v => v!.GetValue<string>()));
+                }
+                else
+                {
+                    var (type, format) = Expected(parameter.Type.Name);
+                    Assert.Equal(type, schema["type"]!.GetValue<string>());
+                    Assert.Equal(format, schema["format"]?.GetValue<string>());
+                }
+
+                // Each declared one is taken...
+                var taken = await _api.SendAsync(
+                    "GET",
+                    $"{PathFor(endpoint)}?{parameter.Name}="
+                    + Sample(parameter.Type));
+                Assert.True(
+                    taken.Status != HttpStatusCode.BadRequest,
+                    $"{where}?{parameter.Name}: {taken.Body}");
+            }
+
+            // ...and nothing else is.
+            var refused = await _api.SendAsync(
+                "GET",
+                $"{PathFor(endpoint)}?unexpected=1");
+            Assert.Equal(HttpStatusCode.BadRequest, refused.Status);
+            Assert.NotEmpty(refused.Error("unexpected"));
+        }
+    }
+
     [Fact]
     public async Task Document_DescribesInstantsAsText()
     {

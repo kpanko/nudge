@@ -16,11 +16,12 @@ internal static class ContextEndpoints
             .WithName("ListContexts")
             .Produces<List<ContextView>>()
             .WithSummary("List contexts")
-            .ProducesValidationProblem();
+            .Takes();
         api.MapGet(One, GetAsync)
             .WithName("GetContext")
             .Produces<ContextView>()
             .WithSummary("Get a context")
+            .Takes()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         api.MapWrite<ContextCreate, ContextView>(
@@ -55,7 +56,7 @@ internal static class ContextEndpoints
     {
         try
         {
-            _ = new Query(http.Request.Query);
+            _ = new Query(http);
             var contexts = await db.Contexts.ToListAsync(http.RequestAborted);
             return TypedResults.Ok(
                 contexts
@@ -76,7 +77,7 @@ internal static class ContextEndpoints
     {
         try
         {
-            _ = new Query(http.Request.Query);
+            _ = new Query(http);
             var context = await db.Contexts.SingleOrDefaultAsync(
                     c => c.Id == id,
                     http.RequestAborted)

@@ -15,11 +15,12 @@ internal static class ProjectEndpoints
             .WithName("ListProjects")
             .Produces<List<ProjectView>>()
             .WithSummary("List projects")
-            .ProducesValidationProblem();
+            .Takes();
         api.MapGet(One, GetAsync)
             .WithName("GetProject")
             .Produces<ProjectView>()
             .WithSummary("Get a project")
+            .Takes()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         api.MapWrite<ProjectCreate, ProjectView>(
@@ -55,7 +56,7 @@ internal static class ProjectEndpoints
     {
         try
         {
-            _ = new Query(http.Request.Query);
+            _ = new Query(http);
             var projects = await db.Projects.ToListAsync(http.RequestAborted);
             return TypedResults.Ok(
                 projects
@@ -76,7 +77,7 @@ internal static class ProjectEndpoints
     {
         try
         {
-            _ = new Query(http.Request.Query);
+            _ = new Query(http);
             var projects = await db.Projects.ToListAsync(http.RequestAborted);
             var project = projects.SingleOrDefault(p => p.Id == id)
                 ?? throw ApiProblem.NotFound("project");

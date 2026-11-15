@@ -15,15 +15,24 @@ internal static class ChangeEndpoints
             .WithName("ListChanges")
             .Produces<List<ChangeView>>()
             .WithSummary("List changes")
-            .WithDescription(
-                "Newest first. before: only changes with a lower number,"
-                + $" for the next page. limit: 1 to {MaxLimit}, default"
-                + $" {DefaultLimit}.")
-            .ProducesValidationProblem();
+            .WithDescription("Newest first.")
+            .Takes(
+                new QueryParameter(
+                    "before",
+                    typeof(long),
+                    "Only changes numbered lower than this: the"
+                    + " number of the last change of the previous"
+                    + " page."),
+                new QueryParameter(
+                    "limit",
+                    typeof(long),
+                    $"How many, from 1 to {MaxLimit}. Default"
+                    + $" {DefaultLimit}."));
         api.MapGet("/changes/{id:long}", GetAsync)
             .WithName("GetChange")
             .Produces<ChangeView>()
             .WithSummary("Get a change")
+            .Takes()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         api.MapWrite<NoBody, ChangeView>(
@@ -48,7 +57,7 @@ internal static class ChangeEndpoints
     {
         try
         {
-            var query = new Query(http.Request.Query, "before", "limit");
+            var query = new Query(http);
             var before = query.Long("before") ?? long.MaxValue;
             var limit = query.Long("limit") ?? DefaultLimit;
             if (limit is < 1 or > MaxLimit)
@@ -80,7 +89,7 @@ internal static class ChangeEndpoints
     {
         try
         {
-            _ = new Query(http.Request.Query);
+            _ = new Query(http);
             var change = await db.Changes
                     .AsNoTracking()
                     .SingleOrDefaultAsync(
