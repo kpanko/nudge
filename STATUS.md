@@ -4,43 +4,50 @@
 **Current milestone:** M1 Core, recurrence, REST API
 
 ## In Progress
-- M1. Three of its six tasks are built and waiting for review.
-  Nothing from them is on main yet. Each pull request contains the
-  ones before it plus its own commits.
+- M1. Five of its six tasks are built and waiting for review; only
+  API-token auth is left. Nothing from them is on main yet. Each
+  pull request contains the ones before it plus its own commits.
   - PR #2, branch `m1-entities`: the entities.
     https://github.com/kpanko/nudge/pull/2
   - PR #3, branch `m1-persistence`: EF Core persistence.
     https://github.com/kpanko/nudge/pull/3
   - PR #4, branch `m1-change-log`: change log, soft delete, undo.
     https://github.com/kpanko/nudge/pull/4
-  - CI passes on all three. CodeRabbit has not been triggered on
-    any of them.
+  - PR #5, branch `m1-rest-api`: REST endpoints with OpenAPI, dry
+    runs and idempotency keys.
+    https://github.com/kpanko/nudge/pull/5
+  - CI passed on #2, #3 and #4. CodeRabbit has not been triggered
+    on any of them.
 - The owner did not follow the sessions of 2026-11-13 and
   2026-11-14. Everything needed to review them is in this file, in
-  the three pull request descriptions, and in the eleven
-  DECISIONS.md entries dated 2026-11-13.
+  the four pull request descriptions, and in the DECISIONS.md
+  entries dated 2026-11-13 and 2026-11-14.
+- **Before approving the deploy of #5**, set the owner's time zone
+  on Fly (see "Must be done by hand" below). Without it the new
+  version stops at startup.
 
 ### How to merge them
-All three pull requests target main. Every route below was tried on
+All four pull requests target main. Every route below was tried on
 throwaway local branches and ends with main identical to
-`m1-change-log`:
+`m1-rest-api`:
 
-1. One step. Merge #4 with "Create a merge commit". It brings #2
-   and #3 with it, and GitHub marks them as merged. (With "Squash
-   and merge" or "Rebase and merge" the result on main is the same,
-   but #2 and #3 stay open and have to be closed by hand.)
-2. One at a time. Merge #2, then #3, then #4, each with "Create a
-   merge commit". Nothing conflicts.
+1. One step. Merge #5 with "Create a merge commit". It brings #2,
+   #3 and #4 with it, and GitHub marks them as merged. (With
+   "Squash and merge" or "Rebase and merge" the result on main is
+   the same, but #2, #3 and #4 stay open and have to be closed by
+   hand.)
+2. One at a time. Merge #2, then #3, then #4, then #5, each with
+   "Create a merge commit". Nothing conflicts.
 3. One squashed commit each, as was done for PR #1. After a
    squash-merge the next pull request shows conflicts in every file
-   both touched (for #3: STATUS.md, DECISIONS.md and
-   `src/Nudge.Core/Project.cs`; for #4: nineteen files), because
-   main then holds the same changes as a different commit. Bring
-   the next branch up to date, then squash-merge it:
+   both touched, because main then holds the same changes as a
+   different commit. Bring the next branch up to date, then
+   squash-merge it:
 
    ```bash
    git fetch origin
-   git checkout m1-persistence   # after #2; m1-change-log after #3
+   git checkout m1-persistence   # after #2; m1-change-log after
+                                 # #3; m1-rest-api after #4
    git merge -X ours origin/main
    dotnet test
    git push
@@ -51,10 +58,40 @@ throwaway local branches and ends with main identical to
    gone into main.
 
 Merging to main starts a deploy that waits for approval of the
-`production` environment. Startup then applies both migrations to
-the production database at `/data/nudge.db`, which is empty so far.
+`production` environment. Startup then applies the three migrations
+to the production database at `/data/nudge.db`, which is empty so
+far.
+
+### Must be done by hand
+- Before approving the first deploy that contains #5, set the
+  owner's time zone as a Fly secret, as an IANA id (the zone the
+  owner lives in; `Europe/London` is only an example):
+
+  ```bash
+  fly secrets set Nudge__TimeZone=Europe/London --app nudge-gtd --stage
+  ```
+
+  `--stage` keeps it for the next deploy without restarting the
+  running machine. It is not in `fly.toml` because the repository
+  is public. Without it the new machine exits at startup with "Set
+  Nudge:TimeZone (environment variable Nudge__TimeZone) to the
+  owner's IANA time zone ...", which `fly logs` shows, and the
+  health check never passes. Locally, `Nudge__TimeZone` does the
+  same for `dotnet run` and `docker run -e`; in Development the
+  machine's own zone is used when it is unset.
+- Until API-token auth is deployed the API is open to anyone who
+  can reach the app. Do not put real data in before then.
 
 ## Recently Completed
+- REST API (PR #5). Every endpoint is under `/api`: items (create
+  whole, edit, reschedule, clear the due date, set or stop the
+  repeat rule, complete, delete, add or remove a context or a
+  reminder), projects, contexts, the change log and undo. Every
+  write goes through `WriteRunner`: strict query and body, the
+  write lock before reading, `?dryRun=true` (rolled back),
+  `Idempotency-Key` (the answer kept in `IdempotencyRecords`, from
+  the third migration, `IdempotencyKeys`), and an answer of
+  `{dryRun, change, data}`. OpenAPI at `/openapi/v1.json`.
 - Change log, soft delete and undo (PR #4). Every save through
   `NudgeDbContext` is recorded as one `Change`, with the values
   before and after of each row, in the same transaction. Items,
@@ -77,13 +114,15 @@ the production database at `/data/nudge.db`, which is empty so far.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Review and merge PR #2, PR #3 and PR #4 (see above) and approve
-   the deploy.
+1. Review and merge PR #2, #3, #4 and #5 (see above), set the
+   time zone secret, and approve the deploy.
 2. Rehearse a restore from the Litestream backup. It needs the
    owner's Fly and Tigris credentials, and is best done before the
    Todoist import (M4) puts real data in.
-3. REST endpoints with OpenAPI; dry-run and idempotency keys.
-4. API-token auth.
+3. API-token auth, on its own branch. Attach it to the `/api`
+   route group in `ApiRoutes.MapNudgeApi`, and name the token in
+   `ChangeSource.For`. Decide whether agent tokens must send an
+   `Idempotency-Key`.
 
 ## Blockers / Open Questions
 - No blockers.
@@ -148,10 +187,93 @@ the production database at `/data/nudge.db`, which is empty so far.
         tables.
     21. There is no separate "restore" or "reopen": undoing the
         deletion or the completion does it.
+  - In the REST API (PR #5). The eight DECISIONS.md entries dated
+    2026-11-14 explain these:
+    22. The owner's time zone is required configuration
+        (`Nudge:TimeZone`, an IANA id), checked at startup; in
+        Development the machine's zone is used if it is unset. It
+        is a Fly secret, not in `fly.toml`, because the repository
+        is public.
+    23. The API is one route group, `/api`, where auth will attach.
+        Every write goes through `WriteRunner`, and a test fails for
+        a write endpoint that does not, or that the catalog of
+        guarantee tests does not cover. Changes are recorded with
+        `Source` "api" until auth names the token.
+    24. Every write answers `{dryRun, change, data}`. `change` is
+        null when nothing changed. `data` is null after a delete,
+        the item after a change to its due date, rule, contexts or
+        reminders, and the undone change after an undo. Creates are
+        201 without `Location`; dry runs are 200.
+    25. A dry run carries the write out, saves, and rolls back.
+    26. Idempotency keys are kept in a table of their own,
+        `IdempotencyRecords`, not in the nullable column on
+        `Changes` that this file suggested: a column could not hold
+        the answer a replay must return, and a write that changes
+        nothing has no change to hang a key on. The record is
+        written in the same transaction, is not in the change log,
+        and is never pruned. Keys are optional; the auth task may
+        require them for agent tokens.
+    27. A request is identified by method, path and the exact bytes
+        of its body; the query (`dryRun`) is left out. The same key
+        with another request is 422. A failed request keeps
+        nothing. A retry after the change was undone is still a
+        replay.
+    28. Completing a repeating item requires the `occurrence` being
+        completed; a stale one is 409. Sending one for an item that
+        does not repeat is 409. No ETags.
+    29. Known limit of 28: in after-completion mode, completing
+        exactly one interval early gives back the same occurrence,
+        so a duplicate without a key passes; the result is the same
+        as one completion (tested). The key is the full protection.
+    30. Requests are strict: on a write, any query parameter but
+        `dryRun` (only `true` or `false`), and any unknown,
+        repeated, mistyped or wrongly null property, is a 400
+        naming it. Property names are case-sensitive; enum names
+        are not.
+    31. PATCH: left out is kept, null clears. The due date, the
+        rule, contexts, reminders and completion are refused there,
+        with the endpoint to use instead.
+    32. JSON: camelCase; enums as camelCase strings; instants in
+        UTC with `Z` (an offset required on input); reminder
+        offsets as `offsetMinutes`; the rule as canonical RRULE
+        text. Change log entries keep the stored form, so ids are
+        upper case there and lower case in resources.
+    33. Errors are problem details: 400, 404 (missing or deleted),
+        409 (domain refusal, refused undo with `reasons`, context
+        name in use, stale occurrence), 413, 415, 422.
+    34. `UndoWithinAsync` undoes inside the caller's transaction,
+        under a savepoint; `UndoAsync` is unchanged.
+    35. The OpenAPI document is served in every environment. XML
+        comments are compiled into it, so `Nudge.Web` now generates
+        a documentation file, with the warnings for members and
+        parameters without comments turned off there.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
 - What was and was not checked:
+  - For PR #5, on 2026-11-14:
+    - `dotnet build` is clean (no warnings) and `dotnet test`
+      passes, in Debug and Release: 419 tests (95 core, 324 web),
+      up from 225. The CI steps (restore, Release build, tests
+      without rebuilding) were run locally.
+    - Seven safeguards were broken in turn (a dry run committing
+      instead of rolling back, the idempotency record not saved,
+      the query check, the occurrence check, the body left out of
+      the fingerprint, the record logged as a change, the undo
+      savepoint not rolled back). A test fails for each.
+    - The Docker image was built and run on an empty volume.
+      Without a time zone it stopped at startup with the message
+      above. With one it applied the three migrations and created
+      an item, and a second start found nothing to do.
+    - The app was run on a scratch database and driven with curl:
+      a dry-run create left nothing; a keyed create and its retry
+      gave the same 201 body, the retry with
+      `Idempotent-Replayed: true`; `?dry_run=true` was a 400;
+      completing advanced the item once, and the same request
+      again was a 409; undo put the occurrence back;
+      `/openapi/v1.json` returned the document.
+    - Not checked: the deploy to Fly, the image under Litestream,
+      and the API from the planning agent or any real client.
   - For PRs #2 and #3, on 2026-11-13:
     - `dotnet build` is clean and `dotnet test` passes, in Debug
       and Release: 139 tests on `m1-persistence` (91 core, 48 web),
@@ -222,7 +344,8 @@ the production database at `/data/nudge.db`, which is empty so far.
     that changed, so edits to different fields both survive, and
     two edits to the same field are last-write-wins.
   - Set `db.Source` (and `Description`) before saving, in one place
-    for all write endpoints; a save without it throws.
+    for all write endpoints; a save without it throws. (Done in
+    `WriteRunner`, with the name from `ChangeSource`.)
   - Begin a transaction before reading in each write request
     (`db.Database.BeginTransactionAsync()` takes SQLite's write
     lock at once), so the log's "before" values are true and writes
@@ -243,15 +366,20 @@ the production database at `/data/nudge.db`, which is empty so far.
     would log, without saving.
   - Idempotency keys: a nullable unique `IdempotencyKey` column on
     `Changes`, written with the change, is the suggested shape.
+    (Not followed: they have a table of their own; see 26 above.)
   - Reach reminders through `db.Items`, never on their own, or the
     reminders of deleted items turn up (matters for M5).
   - `Integrity.ProblemsAsync` lists broken whole-data rules; a
     health page could show it (M5).
-- The first three M1 acceptance criteria hold in the domain and
-  through the database, and are tested at both levels. The fifth
-  (every write is in the change log and can be undone) holds at the
-  database level and is tested there. All four stay unchecked until
-  they are also proven through the API.
+- The four M1 acceptance criteria about recurrence, rescheduling
+  and the change log are now proven through HTTP as well, and are
+  checked in MILESTONES.md: `AcceptanceTests` in
+  `tests/Nudge.Web.Tests/Api` for the first three, and
+  `WriteGuaranteeTests.Write_IsLoggedAndCanBeUndone`, run on every
+  write endpoint, for the fifth.
+- To add a write endpoint: map it with `MapWrite` and add a request
+  for it to `WriteCatalog`; the guard test fails until both are
+  done.
 - No GitHub issues or labels exist yet (`/setup-github` has not
   been run); no pull request so far closed an issue. The repository
   does not delete branches after a merge.

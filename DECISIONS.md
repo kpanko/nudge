@@ -463,3 +463,220 @@ should rewrite the log entries too if they still need to be
 undoable.
 
 ---
+
+## 2026-11-14 The owner's time zone is required configuration
+
+**Context:** `Item.Complete` needs the owner's time zone to know what
+day an item was completed on, and so which occurrence comes next. A
+wrong zone moves items by a day without anyone noticing. Where it is
+configured was left open.
+
+**Decision:** `Nudge:TimeZone` (environment variable
+`Nudge__TimeZone`) holds an IANA id. It is read and checked when the
+app starts, before anything is served: outside Development a missing,
+unknown or non-IANA value stops the app with a message saying what
+to set. In Development an unset value falls back to the machine's
+zone, and the startup log names the zone in use. The repository is
+public, so the owner's zone is not committed: it is set on Fly as a
+secret.
+
+**Alternatives considered:** A default such as UTC (completions in
+the evening would land on the next day, silently). A zone sent by
+each client (one owner has one zone; a client that forgot it would
+do the same damage). The zone in `fly.toml` (public).
+
+**Consequences:** The first deploy of this code fails at startup
+until the secret is set. Tests always set a zone with daylight
+saving, America/New_York.
+
+---
+
+## 2026-11-14 One route group; every write goes through one runner
+
+**Context:** "Every change is logged and can be undone" and "agent
+writes support dry-run and idempotency keys" must hold for write
+endpoints nobody has written yet. Authentication comes in a later
+task.
+
+**Decision:** The API is mapped under one route group, `/api`, which
+is where authentication will be attached. Every write endpoint is
+mapped through `MapWrite`, which hands the request to `WriteRunner`.
+The runner checks the query and body, sets `Source` (from
+`ChangeSource`, the one place the auth task will change) and
+`Description`, takes the write lock before anything is read, runs
+the endpoint's work, saves, and then rolls back (dry run) or stores
+the idempotency record and commits. A test lists the app's
+endpoints and fails if a write endpoint lacks the runner's mark or
+is missing from the catalog of requests that the guarantee tests
+send to every write endpoint.
+
+**Alternatives considered:** An endpoint filter around ordinary
+handlers (it cannot capture the response body for replays without
+running the result twice). Each endpoint doing it itself (one
+forgotten step is a silent gap).
+
+**Consequences:** Handlers do not save or answer; they change
+entities and return a `WriteOutcome`. A new write endpoint fails the
+guard test until it is added to `WriteCatalog`.
+
+---
+
+## 2026-11-14 Every write returns its change; a dry run is a rollback
+
+**Context:** An agent needs to know what a write did, to be able to
+undo it, and to try a write without making it.
+
+**Decision:** Every write answers `{dryRun, change, data}`. `change`
+is the change log entry, in the same shape as
+`GET /api/changes/{id}`, or null if nothing changed; `data` is the
+resource after the write (the item for its due date, rule, contexts
+and reminders; the undone change for an undo; null after a delete).
+`?dryRun=true` runs the same code and saves, so the database's
+constraints are checked, then rolls the transaction back: nothing is
+kept, the answer is 200, `change.id` is null, and ids of anything
+created are not real. Creates answer 201 and send no `Location`, so
+a replay can repeat the answer exactly.
+
+**Alternatives considered:** Working out a dry run with
+`ChangeRecorder.Capture` alone (skips the constraints, and an undo
+writes SQL that it would not see). Marking dry runs with a header
+only (easy to miss). Bodies of the resource alone (the change number
+needed for undo would be in a header).
+
+**Consequences:** Anything a write will do outside the database (the
+push in M5) must happen after the commit, and be skipped for a dry
+run.
+
+---
+
+## 2026-11-14 Idempotency keys are kept in a table of their own
+
+**Context:** STATUS.md suggested a nullable unique `IdempotencyKey`
+column on `Changes`. A replay has to return the first answer, and a
+request that changes nothing has no change to hang a key on.
+
+**Decision:** `IdempotencyRecords` holds the key, method, path, a
+fingerprint, the status and body of the answer, the change it made
+and when. It is written in the same transaction as the change. It is
+not in the change log and undo never touches it, so a retry after
+its change was undone is still a replay, never a second write. The
+fingerprint is SHA-256 of the method, the path and the exact bytes
+of the body; the query is left out, so a dry run and the real request
+are the same request. The same key with another fingerprint is 422.
+A request that fails stores nothing, so it can be put right and sent
+again with its key. Keys are optional, compared exactly, and never
+pruned. The auth task may make them mandatory for agent tokens.
+
+**Alternatives considered:** The column on `Changes` (cannot hold
+the answer, and misses writes that change nothing). Hashing the body
+as canonical JSON (more code, for clients that reorder properties on
+a retry; those get 422). Storing failed answers (a client could not
+correct a request without a new key).
+
+**Consequences:** Concurrent requests with the same key queue on the
+write lock; the second is answered from the record. Records grow by
+one row per keyed write.
+
+---
+
+## 2026-11-14 Completing a repeating item names its occurrence
+
+**Context:** Two identical "complete" requests without a key would
+advance a repeating item twice.
+
+**Decision:** Completing a repeating item requires `occurrence`, the
+day the rule placed the occurrence being completed on
+(`repeat.occurrence`); any other day is 409 with
+`currentOccurrence`, and none is 400. For an item that does not
+repeat `occurrence` is optional, and sending one is 409, because the
+client's view is out of date. There are no ETags: rows have no
+version column, and one would be logged and put back by undo.
+
+**Alternatives considered:** `If-Match` with ETags (a version column,
+and its values going backwards on undo). Accepting a duplicate (the
+fault Todoist had).
+
+**Consequences:** A known limit: in after-completion mode, completing
+exactly one interval early gives back the same occurrence, so a
+duplicate without a key passes the check. The item ends up exactly
+as after one completion and the second records no change (a test
+pins this), but only the idempotency key fully protects against
+duplicates.
+
+---
+
+## 2026-11-14 Requests are read strictly
+
+**Context:** An input that is silently ignored is how an agent
+wrecks data while believing it did something else: `dry_run=true`
+would be a real write, and a PATCH with a due date would leave the
+date alone and report success.
+
+**Decision:** A write takes no query parameter but `dryRun`, which
+must be `true` or `false`. A body must be a JSON object sent as
+`application/json`; a property that is unknown (property names are
+case-sensitive), repeated, null where it cannot be, or of the wrong
+type is a 400 naming it. A PATCH that names the due date, the rule,
+contexts, reminders or completion is told which endpoint to use. In
+a PATCH a property left out is kept and null clears it where that
+means something. Reads refuse unknown query parameters too. Enum
+names are accepted in any case, which is how System.Text.Json reads
+them; numbers are refused.
+
+**Alternatives considered:** The framework's lenient defaults
+(case-insensitive names, numbers in strings, unknown properties
+ignored).
+
+**Consequences:** Clients must send exactly what the OpenAPI
+document describes; a test ties the documented PATCH fields to what
+the handlers apply.
+
+---
+
+## 2026-11-14 JSON, errors and the OpenAPI document
+
+**Context:** The agent, the web UI and the phone all read the same
+API.
+
+**Decision:** camelCase names; enums as camelCase strings
+(`nextAction`, `fixedSchedule`); instants in UTC with a `Z`, and an
+offset required on input; dates `2026-11-20`; times `14:30:00`; a
+relative reminder as `offsetMinutes`; the rule as RRULE text in
+canonical form. Change log entries in responses keep the stored form
+(PascalCase column names, upper-case ids) so they read like the
+tables. Errors are problem details (RFC 9457): 400 with `errors` per
+field, 404 for a missing or deleted thing, 409 for what the data as
+it stands refuses (domain rules, a refused undo with `reasons`, a
+context name in use, a stale occurrence), 413, 415, and 422 for a
+reused key. The OpenAPI document is generated by ASP.NET Core and
+served at `/openapi/v1.json` in every environment, with the XML
+comments as descriptions.
+
+**Alternatives considered:** A `TimeSpan` string or ISO 8601
+duration for offsets (harder to write and to read correctly when
+negative). Lower-case ids in the change log (would differ from the
+tables and from the log's stored text).
+
+**Consequences:** Ids appear in lower case in resources and upper
+case in change log entries; compare them without regard to case.
+
+---
+
+## 2026-11-14 An undo can run inside a transaction it is given
+
+**Context:** A dry run of an undo, and an idempotent undo, need the
+undo to happen inside the request's transaction. `UndoAsync` opens
+its own and refuses to run inside another.
+
+**Decision:** `UndoWithinAsync` does the same work inside the open
+transaction, under a savepoint, so a refused undo leaves the
+transaction as it found it and the caller decides whether to commit.
+`UndoAsync` is unchanged and still refuses an open transaction.
+
+**Alternatives considered:** A callback inside `UndoAsync` for the
+caller's extra writes (harder to follow).
+
+**Consequences:** Two ways to undo, sharing one body; the API uses
+the second.
+
+---
