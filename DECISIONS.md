@@ -854,3 +854,149 @@ has started once on the database. Tests make their databases the
 way startup does before running the command.
 
 ---
+
+## 2026-11-15 The alarm spike is a separate MAUI project, merged on its own
+
+**Context:** M2 asks whether MAUI delivers exact alarms reliably on
+the owner's phone. The M1 pull requests (#2 to #6) were still open,
+and the spike must not touch the server's build or CI.
+
+**Decision:** The spike is `spikes/AlarmSpike`, its own project and
+not in `Nudge.sln`, on `m2-alarm-spike` cut from main (PR #7), so it
+can be merged before or after the M1 stack. It is a real MAUI app
+(`MauiApplication`, a MAUI page), Android only, because the question
+is whether alarms arrive when the MAUI process must start cold for
+the broadcast; the receivers themselves use only Android APIs and
+two files, never a MAUI page or service. Android 8.0 (API 26) and
+later, target API 35; Release builds a plain APK for arm64 and x64,
+signed with the local debug key, to sideload. The repository's
+`Directory.Build.props` applies, so warnings are errors there too;
+the build has none. No network permission, and only invented test
+text.
+
+**Alternatives considered:** A plain .NET for Android app (lighter,
+but it would not answer the MAUI question). Adding the project to
+`Nudge.sln` (CI would then need the Android workload). Basing the
+branch on the M1 stack (it could not be merged on its own).
+
+**Consequences:** CI and the Docker image never see the spike, but
+merging it to main still starts the gated deploy job. Nothing from
+the spike is meant to survive into M5 as is.
+
+---
+
+## 2026-11-15 The alarm spike targets .NET 9
+
+**Context:** The .NET 10 SDK on the development machine has the
+MAUI and Android workload manifests but not their packs, so
+`net10.0-android` does not build there, and installing workloads
+was not allowed in that session. The .NET 9 SDK and its MAUI 9 and
+Android 35 packs are installed.
+
+**Decision:** `net9.0-android` with MAUI 9.0.51 (the workload's
+version, restored from NuGet), and a `global.json` in the spike's
+folder that selects the .NET 9 SDK (9.0.205, rolling forward within
+9.0). The README says how to move to .NET 10 (`dotnet workload
+install maui-android`, then change the target and `global.json`).
+
+**Alternatives considered:** Installing the .NET 10 workloads (not
+allowed without the owner). A `global.json` at the root (it would
+change the server's SDK).
+
+**Consequences:** .NET 9 is at or near the end of its support. That
+is acceptable for a throwaway spike; M5 must use a supported
+version. Alarm delivery is Android's work in either version; MAUI's
+start-up cost, which the spike measures, may differ a little.
+
+---
+
+## 2026-11-15 Exact alarm permissions for a sideloaded app
+
+**Context:** `setAlarmClock` needs exact-alarm permission on
+Android 12 and later. Android 12 and 12L only know
+`SCHEDULE_EXACT_ALARM`, which the user can revoke and which newer
+versions deny by default; Android 13 added `USE_EXACT_ALARM`,
+granted at install and not revocable, which Google Play allows only
+for alarm and calendar apps.
+
+**Decision:** Declare `USE_EXACT_ALARM`, and `SCHEDULE_EXACT_ALARM`
+with `maxSdkVersion="32"`. Nudge is sideloaded, so Play's policy
+does not apply, and a reminder app is the case `USE_EXACT_ALARM`
+exists for. Also `POST_NOTIFICATIONS`, requested at first start on
+Android 13 and later, and `RECEIVE_BOOT_COMPLETED`. The app never
+asks to be exempt from battery optimisation, so the test shows
+whether `setAlarmClock` gets through without it; the page shows
+whether it is exempt.
+
+**Alternatives considered:** `SCHEDULE_EXACT_ALARM` on every version
+(revocable, and off by default on Android 14 for new installs).
+Asking for the battery exemption (it would hide what the test is
+about).
+
+**Consequences:** If Nudge ever goes to the Play Store this needs
+revisiting. M5 can copy these declarations.
+
+---
+
+## 2026-11-15 How the alarm spike behaves and what it logs
+
+**Context:** The spike's log is the evidence for the M2 checklist,
+and VISION says a swipe is not an answer.
+
+**Decision:** Pending alarms are a tab-separated file in private
+storage, rewritten atomically; the event log is an append-only text
+file in the app's folder on shared storage, so `adb pull` reads it
+from a Release build, and each line also goes to logcat. Every line
+has local time with offset and milliseconds. Each process start is
+logged with how long MAUI took to start; each fire with its delay
+against the intended time (LATE over 10 s, the pass threshold) and
+the Doze, screen and battery saver state. Notifications use one
+high-importance channel, category reminder, not ongoing. Complete
+removes the alarm; Snooze brings it back in 2 minutes; Schedule
+opens the app through an activity intent (Android 12 and later
+refuse an activity started from a receiver behind a notification)
+and removes the alarm, as the spike has no time picker. A swipe or
+"Clear all" (the delete intent) is logged and the alarm comes back
+in 30 s, a test value. The boot receiver (`BOOT_COMPLETED`,
+`MY_PACKAGE_REPLACED`, `QUICKBOOT_POWERON`) registers pending
+alarms again, fires overdue ones at once as LATE and re-posts
+unanswered notifications. The app is not direct-boot aware. Opening
+the app re-registers nothing; a button does.
+
+**Alternatives considered:** SQLite (a dependency for a few lines).
+The log in private storage only (a Release build cannot be read
+with `adb run-as`). Re-registering whenever the app opens (it would
+hide whether the boot receiver worked).
+
+**Consequences:** The re-notify interval in VISION's open questions
+is still open; 30 s is only for testing. An alarm due between a
+reboot and the first unlock fires late, at the unlock; M5 could use
+direct-boot storage to avoid that.
+
+---
+
+## 2026-11-15 Testing Doze with alarm clocks
+
+**Context:** On the emulator, `dumpsys deviceidle force-idle` was
+refused while an alarm clock was due within the hour, and
+scheduling one while forced ended deep Doze. Android does not enter
+deep Doze when an alarm clock is due within `min_time_to_alarm`
+(1 hour by default), and leaves Doze to deliver one.
+
+**Decision:** The spike has a 3-hour button for a Doze test by hand
+(screen off, phone still, overnight). The adb route in the README
+first stops Play services from resetting device settings
+(`device_config set_sync_disabled_for_tests until_reboot`), shortens
+`min_time_to_alarm` to a minute, forces Doze, schedules, and puts
+everything back afterwards. A pass is judged by the delay and by
+`get deep` showing IDLE or IDLE_MAINTENANCE until the alarm, not by
+the `doze:` value at delivery, which is usually "no".
+
+**Alternatives considered:** A 60-minute alarm for the Doze step (it
+can never meet deep Doze).
+
+**Consequences:** On the emulator, with that setting shortened, an
+alarm fired 3.8 s late through forced deep Doze with the process
+dead. The real result must come from the phone.
+
+---

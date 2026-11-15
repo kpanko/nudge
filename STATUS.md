@@ -32,6 +32,18 @@
 - **Before approving the deploy of #5**, set the owner's time zone
   on Fly (see "Must be done by hand" below). Without it the new
   version stops at startup.
+- M2, the alarm spike, task 1 (built, waiting for the owner's phone):
+  PR #7, branch `m2-alarm-spike`, `spikes/AlarmSpike`.
+  https://github.com/kpanko/nudge/pull/7
+  It is cut from main and **independent of #2 to #6**: it can be
+  merged before or after them, with "Create a merge commit" or a
+  squash. It touches only its own folder and the M2 section of
+  MILESTONES.md (M2 `in-progress`, task 1 checked); a test merge
+  into `m1-api-auth` had no conflict. The app is not in `Nudge.sln`
+  and not in the Docker image, so merging deploys nothing new, though
+  the push to main still starts the deploy job, which waits for
+  approval. The phone checklist and results table are in
+  `spikes/AlarmSpike/README.md`. CI was not watched.
 
 ### How to merge them
 All five pull requests target main. Each route below was played
@@ -159,6 +171,22 @@ at `/data/nudge.db`, which is empty so far.
   stops one at once. Names are never reused, revoked ones included.
 - If only #5 is deployed, before #6, the API is open to anyone who
   can reach the app. Do not put real data in before #6 is deployed.
+- The alarm spike (M2 task 2), on the phone:
+  1. Install the APK. It is already built on the dev machine at
+     `C:\Users\panko\src\nudge\spikes\AlarmSpike\bin\Release\net9.0-android\nudge.spike.alarms-Signed.apk`
+     (from the code in PR #7; to rebuild it, see the spike's README).
+     With USB debugging: `adb install -r <that path>`; or copy it to
+     the phone and open it in Files, allowing "Install unknown apps".
+  2. Open it and allow notifications. Do not exempt it from battery
+     optimisation.
+  3. Run the checklist in `spikes/AlarmSpike/README.md` (steps 0 to
+     9: baselines with the app open and swiped from recents, Doze,
+     airplane mode, two reboot cases, the three actions, swipe-away),
+     adding a note in the app before each step.
+  4. Copy or pull the log, fill in the README's results table, and
+     decide MAUI or Kotlin. Record the decision in DECISIONS.md and
+     tick the M2 criteria and task 2 in MILESTONES.md. Keep the log
+     out of the repository if your notes in it are personal.
 
 ## Recently Completed
 - API-token auth (PR #6). Tokens are `nudge_` and 32 random bytes;
@@ -207,7 +235,8 @@ at `/data/nudge.db`, which is empty so far.
    Todoist import (M4) puts real data in.
 3. After the deploy, make the first token and call the API with it
    (see "Must be done by hand"); then M1 can be marked `done`.
-4. M2, the alarm spike, once M1 is done.
+4. M2: run the alarm spike's checklist on the phone (PR #7; see
+   "Must be done by hand"). It does not wait for M1.
 
 ## Blockers / Open Questions
 - No blockers.
@@ -399,10 +428,88 @@ at `/data/nudge.db`, which is empty so far.
         which writes each URL with its query) is held at Warning in
         code, so a token sent in the query string cannot reach the
         log whatever the settings file says.
+  - In the alarm spike (PR #7), on 2026-11-15. The DECISIONS.md
+    entries of that date about the spike explain these:
+    50. The spike is its own project in `spikes/AlarmSpike`, not in
+        `Nudge.sln`, on a branch cut from main, so it can be merged
+        on its own and the server's build and CI never see it. It is
+        a real MAUI app (`MauiApplication`), Android only.
+    51. It targets `net9.0-android` with MAUI 9.0.51, and a
+        `global.json` in its folder selects the .NET 9 SDK: the
+        .NET 10 SDK here has the MAUI and Android workload manifests
+        but not their packs, and installing was not allowed. Moving
+        to .NET 10 is described in its README. .NET 9 is at or near
+        the end of its support; that is acceptable for a throwaway
+        spike, not for M5.
+    52. Android 8.0 (API 26) and later, target API 35. Release builds
+        a plain APK (not the Play bundle) for arm64 and x64, signed
+        with the local debug key.
+    53. Exact alarms: `USE_EXACT_ALARM`, which Android 13+ grants at
+        install and the user cannot revoke (Play allows it only for
+        alarm and calendar apps, irrelevant when sideloading), plus
+        `SCHEDULE_EXACT_ALARM` capped at API 32 for Android 12 and
+        12L. Also `POST_NOTIFICATIONS` (asked at first start on 13+)
+        and `RECEIVE_BOOT_COMPLETED`. No battery-optimisation
+        request, and no `INTERNET`.
+    54. Pending alarms are a tab-separated file in private storage,
+        written atomically; the event log is an append-only text
+        file in the app's folder on shared storage, so `adb pull`
+        reads it from a Release build, and also goes to logcat (tag
+        `AlarmSpike`). No database.
+    55. Notifications: one high-importance channel, category
+        reminder, not ongoing. Complete removes the alarm; Snooze
+        brings it back in 2 minutes; Schedule opens the app (an
+        activity intent, as Android 12+ requires) and removes the
+        alarm, since the spike has no time picker; tapping the body
+        only opens the app.
+    56. A swipe (delete intent, "Clear all" included) brings the
+        alarm back after 30 s. That is a test value; the re-notify
+        interval stays an open question in VISION.md.
+    57. The boot receiver handles `BOOT_COMPLETED`,
+        `MY_PACKAGE_REPLACED` and `QUICKBOOT_POWERON`: it registers
+        pending alarms again, fires overdue ones at once (logged
+        LATE), and re-posts unanswered notifications. The app is not
+        direct-boot aware, so this happens at the first unlock.
+        Opening the app does not re-register anything; a button
+        does, so the log shows what the boot receiver did alone.
+    58. On time means a delay under 10 s against the intended time;
+        the log marks anything later LATE. Each process start is
+        logged with how long MAUI's start-up took, to separate
+        Android's delay from MAUI's.
+    59. Android does not enter deep Doze while an alarm clock is due
+        within an hour (`min_time_to_alarm`), and leaves Doze to
+        deliver one. So the app has a 3-hour button for a real Doze
+        test, and the adb Doze test shortens that setting for its
+        duration. The log records the Doze, screen and battery saver
+        state at each delivery.
+    60. Warnings are errors in the spike too (the repository's
+        `Directory.Build.props` applies); the build has none.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
 - What was and was not checked:
+  - For the alarm spike (PR #7), on 2026-11-15:
+    - The Release build from the command line is clean (no
+      warnings). The APK path is under "Must be done by hand".
+    - On the Pixel 7 API 35 emulator already installed (run with
+      `-read-only`, so the AVD is unchanged), with the Release APK
+      and the process killed before each alarm: fired with the
+      screen off in airplane mode (+3.6 s) and in forced deep Doze
+      (+3.8 s); the delays were mostly MAUI's cold start on an
+      overloaded emulator (load average up to 57); +12 to +14 ms
+      with the process alive; the first alarm after the emulator's
+      first boot was 35 s late. After `adb reboot`, a future alarm
+      was re-registered and fired, an overdue one fired as LATE, and
+      an unanswered notification came back. Complete, Snooze and
+      Schedule each worked, started cold by the action; "Clear all"
+      was detected as a swipe and the alarm returned 30 s later; an
+      update ran the restore; `adb pull` read the log. A screenshot
+      showed the three actions.
+    - Not checked: anything on the owner's phone (every M2
+      acceptance criterion is still open); a real swipe gesture
+      (`input swipe` registered as taps on the emulator); Doze
+      reached by stillness; Android versions other than 15;
+      manufacturer battery rules; a .NET 10 build; the Share button.
   - For PR #6 after the security review, on 2026-11-15:
     - `dotnet build` is clean and `dotnet test` passes, in Debug
       and Release: 545 tests (95 core, 450 web). Each of the three
