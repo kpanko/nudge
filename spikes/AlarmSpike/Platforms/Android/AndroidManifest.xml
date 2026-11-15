@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:label="Nudge alarm spike"
+               android:icon="@mipmap/appicon"
+               android:roundIcon="@mipmap/appicon_round"
+               android:allowBackup="false"
+               android:supportsRtl="true" />
+
+  <!-- Android 13 and later: notifications need a runtime grant. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <!-- Exact alarms. USE_EXACT_ALARM (Android 13+) is granted at
+       install and cannot be revoked by the user; Google Play allows it
+       only for alarm and calendar apps, which does not matter for a
+       sideloaded app. Android 12 and 12L do not know it, so they get
+       SCHEDULE_EXACT_ALARM, which they grant by default but the user
+       can revoke. Capping that one at API 32 keeps it from showing up
+       as a revocable permission on newer phones. -->
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+                   android:maxSdkVersion="32" />
+
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+</manifest>

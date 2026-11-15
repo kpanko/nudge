@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Throwaway spike for milestone M2. It is deliberately not in
+    Nudge.sln, so the server's build and CI never see it. Build it
+    from this folder; global.json here selects the .NET 9 SDK.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <RootNamespace>AlarmSpike</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <ApplicationTitle>Nudge alarm spike</ApplicationTitle>
+    <ApplicationId>nudge.spike.alarms</ApplicationId>
+    <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+
+    <!-- Android 8.0: notification channels exist everywhere. -->
+    <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+
+    <!-- A plain APK to sideload, for phones (arm64) and the emulator
+         (x64), rather than the Play Store bundle Release defaults to. -->
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" Color="#1E5AA8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls"
+                      Version="$(MauiVersion)" />
+  </ItemGroup>
+
+</Project>
