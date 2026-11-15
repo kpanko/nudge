@@ -26,20 +26,20 @@ deployed and tested. Status values: planned | in-progress | done
 **Goal:** The domain is correct and reachable over HTTP.
 
 **Acceptance criteria:**
-- [ ] Completing a repeating item once advances it exactly once
-- [ ] Setting a due date never removes the repeat rule
-- [ ] Rescheduling one occurrence leaves rule and reminders intact
+- [x] Completing a repeating item once advances it exactly once
+- [x] Setting a due date never removes the repeat rule
+- [x] Rescheduling one occurrence leaves rule and reminders intact
 - [x] Property-based recurrence tests pass across DST changes,
       month ends and leap years
-- [ ] Every write is in the change log and can be undone
+- [x] Every write is in the change log and can be undone
 
 **Tasks:**
-- [ ] Entities: item, project (nested), context, reminder
+- [x] Entities: item, project (nested), context, reminder
 - [x] Recurrence engine: fixed-schedule and after-completion modes
-- [ ] EF Core + SQLite persistence and migrations
-- [ ] Change log, soft delete, undo
-- [ ] REST endpoints with OpenAPI; dry-run and idempotency keys
-- [ ] API-token auth
+- [x] EF Core + SQLite persistence and migrations
+- [x] Change log, soft delete, undo
+- [x] REST endpoints with OpenAPI; dry-run and idempotency keys
+- [x] API-token auth
 
 ---
 
