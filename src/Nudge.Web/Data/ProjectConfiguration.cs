@@ -19,11 +19,12 @@ internal sealed class ProjectConfiguration
         builder.HasQueryFilter(project => project.DeletedAt == null);
 
         // The row of a project that still has projects under it
-        // cannot be removed.
+        // cannot be removed. ClientNoAction, for the reason given for
+        // an item's project.
         builder
             .HasOne(project => project.Parent)
             .WithMany()
             .HasForeignKey("ParentId")
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.ClientNoAction);
     }
 }

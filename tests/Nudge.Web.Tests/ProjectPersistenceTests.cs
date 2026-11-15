@@ -177,6 +177,70 @@ public sealed class ProjectPersistenceTests : IDisposable
         Assert.Equal(1L, _database.Scalar("SELECT COUNT(*) FROM Items"));
     }
 
+    // Removing a tracked project must leave the tracked items in it
+    // as they are. EF Core sets an optional foreign key to null on
+    // tracked dependents unless the relationship says not to, which
+    // would take the item out of its project.
+    [Fact]
+    public void RemovingATrackedProject_LeavesItsTrackedItemsInIt()
+    {
+        var house = new Project("House");
+        var item = new Item("Measure the worktop") { Project = house };
+        using (var db = _database.NewContext())
+        {
+            db.Items.Add(item);
+            db.SaveChanges();
+        }
+
+        var before = _database.Dump();
+        using (var db = _database.NewContext())
+        {
+            var loaded = db.Items.Single(i => i.Id == item.Id);
+            var project = loaded.Project!;
+
+            db.Projects.Remove(project);
+            var refused = Assert.Throws<InvalidOperationException>(
+                () => db.SaveChanges());
+            Assert.Contains("never removed", refused.Message);
+
+            Assert.Same(project, loaded.Project);
+            var entry = db.Entry(loaded);
+            Assert.Equal(EntityState.Unchanged, entry.State);
+            Assert.Equal(house.Id, entry.Property("ProjectId").CurrentValue);
+        }
+
+        Assert.Equal(before, _database.Dump());
+    }
+
+    // The same for a tracked project under the one removed.
+    [Fact]
+    public void RemovingATrackedProject_LeavesTrackedProjectsUnderIt()
+    {
+        var house = new Project("House");
+        var kitchen = new Project("Kitchen", house);
+        Save(kitchen);
+
+        var before = _database.Dump();
+        using (var db = _database.NewContext())
+        {
+            var projects = db.Projects.ToList();
+            var parent = projects.Single(p => p.Id == house.Id);
+            var child = projects.Single(p => p.Id == kitchen.Id);
+
+            db.Projects.Remove(parent);
+            var refused = Assert.Throws<InvalidOperationException>(
+                () => db.SaveChanges());
+            Assert.Contains("never removed", refused.Message);
+
+            Assert.Same(parent, child.Parent);
+            var entry = db.Entry(child);
+            Assert.Equal(EntityState.Unchanged, entry.State);
+            Assert.Equal(house.Id, entry.Property("ParentId").CurrentValue);
+        }
+
+        Assert.Equal(before, _database.Dump());
+    }
+
     [Fact]
     public void EmptyProjectRow_CanBeRemoved()
     {

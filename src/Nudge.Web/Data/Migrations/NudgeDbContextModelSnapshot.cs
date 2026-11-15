@@ -331,7 +331,7 @@ namespace Nudge.Web.Data.Migrations
                     b.HasOne("Nudge.Core.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.ClientNoAction);
 
                     b.Navigation("Project");
                 });
@@ -341,7 +341,7 @@ namespace Nudge.Web.Data.Migrations
                     b.HasOne("Nudge.Core.Project", "Parent")
                         .WithMany()
                         .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.ClientNoAction);
 
                     b.Navigation("Parent");
                 });

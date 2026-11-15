@@ -64,12 +64,15 @@ internal sealed class ItemConfiguration : IEntityTypeConfiguration<Item>
             });
 
         // The row of a project that still has items cannot be
-        // removed.
+        // removed. ClientNoAction, not Restrict: with Restrict, EF
+        // Core takes a tracked item out of a project that is being
+        // removed, so the item would lose its project instead of the
+        // removal failing.
         builder
             .HasOne(item => item.Project)
             .WithMany()
             .HasForeignKey("ProjectId")
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.ClientNoAction);
 
         builder
             .HasMany(item => item.Contexts)
