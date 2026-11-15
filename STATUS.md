@@ -23,8 +23,8 @@
     https://github.com/kpanko/nudge/pull/5
   - PR #6, branch `m1-api-auth`: API-token auth.
     https://github.com/kpanko/nudge/pull/6
-  - CI passed on #2, #3 and #4. CodeRabbit has not been triggered
-    on any of them.
+  - CI passed on all five (#5 at f495212, #6 at 3c15b05).
+    CodeRabbit has not been triggered on any of them.
 - The owner did not follow the sessions of 2026-11-13 and
   2026-11-14. Everything needed to review them is in this file, in
   the five pull request descriptions, and in the DECISIONS.md
@@ -34,9 +34,15 @@
   version stops at startup.
 
 ### How to merge them
-All five pull requests target main. Every route below was tried on
-throwaway local branches and ends with main identical to
-`m1-api-auth`:
+All five pull requests target main. Each route below was played
+from start to end in a throwaway clone, twice: once as the branches
+are, and once with a review fix pushed to `m1-entities` after the
+later branches were cut. As they are, every route ends with main
+identical to `m1-api-auth`.
+
+STATUS.md on the older branches, and the descriptions of #3 to #5
+before 2026-11-14, gave `git merge -X ours` for the squash route.
+That is unsafe; do not follow it. These instructions replace it.
 
 1. One step. Merge #6 with "Create a merge commit". It brings #2,
    #3, #4 and #5 with it, and GitHub marks them as merged. (With
@@ -44,35 +50,66 @@ throwaway local branches and ends with main identical to
    the same, but #2 to #5 stay open and have to be closed by hand.)
    To deploy the API without auth for a while, merge #5 this way
    instead, and #6 later; but see "Must be done by hand".
+   If one of #2 to #5 is still open after #6 is merged, it holds
+   commits that #6 lacks (a fix pushed to it later), and it must be
+   merged as well.
 2. One at a time. Merge #2, then #3, #4, #5 and #6, each with
-   "Create a merge commit". Nothing conflicts.
+   "Create a merge commit". Nothing conflicts, and a fix pushed to
+   an earlier branch is carried along by merging that branch.
 3. One squashed commit each, as was done for PR #1. After a
    squash-merge the next pull request shows conflicts in every file
    both touched, because main then holds the same changes as a
-   different commit. Bring the next branch up to date, then
-   squash-merge it:
+   different commit. After each squash-merge, set the branch just
+   merged and the next one, run both checks, and only then bring
+   the next branch up to date and squash-merge it:
 
    ```bash
+   PREV=m1-entities NEXT=m1-persistence   # after #2; then
+   # m1-persistence m1-change-log after #3, m1-change-log
+   # m1-rest-api after #4, m1-rest-api m1-api-auth after #5
    git fetch origin
-   # The branch just squash-merged must match main exactly; stop
-   # if this prints anything.
-   git diff origin/main origin/m1-entities   # m1-persistence after
-                                             # #3, and so on
-   git checkout m1-persistence   # after #2; m1-change-log after
-                                 # #3; m1-rest-api after #4;
-                                 # m1-api-auth after #5
+   # 1. Main must hold exactly the branch just merged.
+   git diff origin/main origin/$PREV
+   # 2. The next branch must already hold everything in it.
+   git diff origin/$PREV $(git merge-base origin/$PREV origin/$NEXT)
+   # Both must print nothing. Then:
+   git checkout $NEXT
+   git pull --ff-only
    git merge -s ours origin/main
    dotnet test
    git push
    ```
 
-   `-s ours` records the merge and keeps the branch's files as they
-   are, which is right because main then holds exactly the earlier
-   pull requests (the `git diff` checks it). This replaces the
-   `-X ours` given here before: tried on #6, `-X ours` kept main's
+   `-s ours` records the merge and keeps the next branch's files as
+   they are, which is right only when both checks print nothing.
+   If check 2 prints something, a commit reached `$PREV` after the
+   next branch was cut: main has it, and `-s ours` would drop it
+   from the next branch, so the next squash-merge would take it off
+   main again. Instead, merge it up the stack with ordinary merges,
+   from `$NEXT` to `m1-api-auth`, testing and pushing each:
+
+   ```bash
+   git checkout m1-persistence && git pull --ff-only
+   git merge origin/m1-entities && dotnet test && git push
+   git checkout m1-change-log && git pull --ff-only
+   git merge origin/m1-persistence && dotnet test && git push
+   # ... and so on up to m1-api-auth
+   git fetch origin
+   ```
+
+   (start from `$NEXT` and its `$PREV`), then run the checks again
+   and carry on. Played with such a fix on `m1-entities`, check 2
+   stopped the first round; after the fix was merged up the stack
+   the route ended with the fix on main and everything else
+   identical to `m1-api-auth`, and `dotnet test` passed there. In
+   later rounds `$PREV` ends in the `-s ours` merge, whose files are
+   those of its first parent, so check 2 holds there too (it passed
+   in every round of both plays).
+
+   `-X ours`, given before, is unsafe: tried on #6 it kept main's
    side of hunks that did not conflict, and left `Program.cs`
    mapping the API and the OpenAPI document twice, the second time
-   without auth (`dotnet test` fails on it, but nothing else would).
+   without auth.
 
 Merging to main starts a deploy that waits for approval of the
 `production` environment. Startup then applies the four migrations
@@ -339,9 +376,9 @@ at `/data/nudge.db`, which is empty so far.
         source; `TestDatabase.DataTables` and `Api.Dump` leave out
         `ApiTokens`, as they leave out `IdempotencyRecords`;
         `OpenApiTests` also checks the 401 and the requirement.
-    47. The merge route with squashed commits now uses
-        `git merge -s ours` instead of `-X ours`; see "How to merge
-        them".
+    47. The merge route with squashed commits now uses two checks
+        and `git merge -s ours` instead of `-X ours`; see "How to
+        merge them". The descriptions of #3, #4 and #5 point there.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
