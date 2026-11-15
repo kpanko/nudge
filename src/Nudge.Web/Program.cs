@@ -21,6 +21,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.ConfigureHttpJsonOptions(
     options => JsonSetup.Apply(options.SerializerOptions));
 builder.Services.AddNudgeApi();
+builder.Services.AddNudgeOpenApi();
 var app = builder.Build();
 app.Logger.LogInformation("Owner time zone: {Zone}", ownerTimeZone);
 
@@ -71,6 +72,10 @@ app.MapGet(
     });
 
 app.MapNudgeApi();
+
+// Served in every environment: the agent and the MCP server (M6)
+// read it.
+app.MapOpenApi(OpenApiSetup.DocumentPath);
 
 app.Run();
 

@@ -5,6 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Builds the OpenAPI document. On the same 10.0 patch as the
+         framework the app runs on. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- EF Core brings Microsoft.Data.Sqlite with it, so the two
          cannot end up on different versions. EF Core 11 needs
          .NET 11: stay on 10.0.x while this project targets
@@ -20,6 +26,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The XML comments on the API's types and endpoints become the
+         descriptions in the OpenAPI document. Not every public member
+         of the app needs one, nor every parameter. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
   </PropertyGroup>
 
 </Project>
