@@ -563,7 +563,10 @@ not in the change log and undo never touches it, so a retry after
 its change was undone is still a replay, never a second write. The
 fingerprint is SHA-256 of the method, the path and the exact bytes
 of the body; the query is left out, so a dry run and the real request
-are the same request. The same key with another fingerprint is 422.
+are the same request. The path is taken as routing reads it, in
+lower case and without a trailing slash, so an id in upper case is
+the same request; an id spelt another way (without hyphens, in
+braces) still counts as a different request. The same key with another fingerprint is 422.
 A request that fails stores nothing, so it can be put right and sent
 again with its key. Keys are optional, compared exactly, and never
 pruned. The auth task may make them mandatory for agent tokens.

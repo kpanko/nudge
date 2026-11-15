@@ -356,15 +356,24 @@ public sealed class WriteRunner(
     /// What makes two requests the same request: the method, the
     /// path and the exact bytes of the body. The query is left out;
     /// <c>dryRun</c> is the only parameter a write takes, so a dry
-    /// run and the real request count as the same.
+    /// run and the real request count as the same. The path is read
+    /// as routing reads it, ignoring case and a trailing slash, so
+    /// an id in upper case is the same request; an id spelt another
+    /// way (without hyphens, in braces) is not.
     /// </summary>
     private static string Fingerprint(
         string method,
         string path,
         byte[] body)
     {
+        var routed = path.ToLowerInvariant();
+        if (routed.Length > 1)
+        {
+            routed = routed.TrimEnd('/');
+        }
+
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        hash.AppendData(Encoding.UTF8.GetBytes($"{method}\n{path}\n"));
+        hash.AppendData(Encoding.UTF8.GetBytes($"{method}\n{routed}\n"));
         hash.AppendData(body);
         return Convert.ToHexString(hash.GetHashAndReset());
     }

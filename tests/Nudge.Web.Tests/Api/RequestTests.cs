@@ -158,6 +158,45 @@ public sealed class RequestTests : IDisposable
         Assert.Single((await _api.GetAsync("/api/items")).AsArray());
     }
 
+    // Routing ignores the case of the path and a trailing slash, so
+    // the fingerprint does too; another item is another request.
+    [Fact]
+    public async Task Key_RetriedWithThePathSpeltDifferently_IsReplayed()
+    {
+        var first = await _api.CreateItemAsync(Plumber);
+        var second = await _api.CreateItemAsync(Plumber);
+        var id = first["id"]!.GetValue<string>();
+        var edit = """{"title":"Call the plumber again"}""";
+        var done = await _api.SendAsync(
+            "PATCH",
+            $"/api/items/{id}",
+            edit,
+            "key-1");
+        Assert.Equal(HttpStatusCode.OK, done.Status);
+        var after = _api.Everything();
+
+        foreach (var path in new[]
+        {
+            $"/api/items/{id.ToUpperInvariant()}",
+            $"/API/Items/{id}",
+            $"/api/items/{id}/",
+        })
+        {
+            var retry = await _api.SendAsync("PATCH", path, edit, "key-1");
+
+            Assert.True(retry.Replayed, $"{path}: {retry.Body}");
+            Assert.Equal(done.Body, retry.Body);
+        }
+
+        var other = await _api.SendAsync(
+            "PATCH",
+            $"/api/items/{second["id"]}",
+            edit,
+            "key-1");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, other.Status);
+        Assert.Equal(after, _api.Everything());
+    }
+
     // A dry run with a key the real request already used is that
     // request again: it gets the kept answer, with the real
     // request's status and "dryRun": false, and does nothing.

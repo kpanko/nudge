@@ -216,7 +216,9 @@ far.
         and is never pruned. Keys are optional; the auth task may
         require them for agent tokens.
     27. A request is identified by method, path and the exact bytes
-        of its body; the query (`dryRun`) is left out. The same key
+        of its body; the query (`dryRun`) is left out, and the path
+        is compared ignoring case and a trailing slash, as routing
+        does (other spellings of an id differ). The same key
         with another request is 422. A failed request keeps
         nothing. A retry after the change was undone is still a
         replay.
