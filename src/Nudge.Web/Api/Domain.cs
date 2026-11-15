@@ -10,7 +10,7 @@ namespace Nudge.Web.Api;
 /// call given is covered, so a bug elsewhere still surfaces as a
 /// 500 instead of passing for the client's mistake.
 /// </summary>
-internal static class Domain
+public static class Domain
 {
     /// <param name="field">The input the values came from, named as
     /// the client wrote it.</param>
@@ -52,21 +52,19 @@ internal static class Domain
 
     /// <summary>
     /// The problem for a save the database refused, or null if it
-    /// was not a constraint: that would be a bug, not the client's
-    /// doing, and is left to surface as a 500.
+    /// is not the one refusal a correct request can run into: a
+    /// context name already in use. Any other refusal means the
+    /// entities let something through that they should not have, a
+    /// bug, and is left to surface as a 500; what SQLite said is
+    /// never passed on to the client.
     /// </summary>
     public static ApiProblem? Refused(DbUpdateException e)
     {
-        if (e.InnerException is not SqliteException
+        if (e.InnerException is SqliteException
             {
                 SqliteErrorCode: 19,
-            } sqlite)
-        {
-            return null;
-        }
-
-        // The one constraint a correct request can run into.
-        if (sqlite.Message.Contains(
+            } sqlite
+            && sqlite.Message.Contains(
                 "UNIQUE constraint failed: Contexts.Name",
                 StringComparison.Ordinal))
         {
@@ -75,8 +73,7 @@ internal static class Domain
                 + " case of its letters.");
         }
 
-        return ApiProblem.Conflict(
-            $"The database refused the change: {sqlite.Message}");
+        return null;
     }
 
     /// <summary>The message without the "(Parameter 'x')" that names
