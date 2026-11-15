@@ -4,39 +4,23 @@
 **Current milestone:** M1 Core, recurrence, REST API
 
 ## In Progress
-- M1. All six tasks are built and waiting for review. Nothing from
-  them is on main yet, and nothing has been deployed, so M1 stays
-  `in-progress`: by MILESTONES.md a milestone ends deployed and
-  tested. What is left: review and merge the five pull requests
-  below, set the time zone secret, approve the deploy, make the
-  first API token on the server, and call the deployed API with it
-  (see "Must be done by hand"). Each pull request contains the ones
-  before it plus its own commits.
-  - PR #2, branch `m1-entities`: the entities.
-    https://github.com/kpanko/nudge/pull/2
-  - PR #3, branch `m1-persistence`: EF Core persistence.
-    https://github.com/kpanko/nudge/pull/3
-  - PR #4, branch `m1-change-log`: change log, soft delete, undo.
-    https://github.com/kpanko/nudge/pull/4
-  - PR #5, branch `m1-rest-api`: REST endpoints with OpenAPI, dry
-    runs and idempotency keys.
-    https://github.com/kpanko/nudge/pull/5
-  - PR #6, branch `m1-api-auth`: API-token auth.
-    https://github.com/kpanko/nudge/pull/6
-  - CI passed on all five (#5 at f495212, #6 at 33e8014; commits
-    on `m1-api-auth` after that one change only this file).
-    CodeRabbit reviewed #2 and #3 on 2026-11-14 and left three
-    comments; they are fixed by commits on top of `m1-api-auth`,
-    pushed to #6 (see "Blockers / Open Questions"). It skipped #4
-    to #7: a review there has to be asked for by ticking "Trigger
-    review" in its comment.
+- M1. All six tasks are on main: PR #6 was merged on 2026-11-15
+  with a merge commit (359a633), which brought #2, #3, #4 and #5
+  with it. Nothing has been deployed, so M1 stays `in-progress`:
+  by MILESTONES.md a milestone ends deployed and tested. What is
+  left: approve the deploy, make the first API token on the
+  server, and call the deployed API with it (see "Must be done by
+  hand").
+  - CI passed on #6 at 97d9e48 before the merge. Nobody reviewed
+    #4, #5 or #6: CodeRabbit skipped them. Its three comments on
+    #2 and #3 are fixed in the merge but not answered on GitHub
+    (see "Blockers / Open Questions").
 - The owner did not follow the work of 2026-11-13, 2026-11-14 and
   2026-11-15 as it was done. Everything needed to review it is in
   this file, in the six pull request descriptions, and in the
   DECISIONS.md entries of those three dates.
-- **Before approving the deploy of #5**, set the owner's time zone
-  on Fly (see "Must be done by hand" below). Without it the new
-  version stops at startup.
+- The time zone secret `Nudge__TimeZone` was staged on Fly on
+  2026-11-15, so the deploy can be approved.
 - M2, the alarm spike, task 1 (built, waiting for the owner's phone):
   PR #7, branch `m2-alarm-spike`, `spikes/AlarmSpike`.
   https://github.com/kpanko/nudge/pull/7
@@ -53,94 +37,18 @@
   `spikes/AlarmSpike/README.md`. CI's `test` job passed on c8230e4;
   it builds `Nudge.sln` only, so it says nothing about the spike.
 
-### How to merge them
-All five pull requests target main. Each route below was played
-from start to end in a throwaway clone, twice: once as the branches
-are, and once with a review fix pushed to `m1-entities` after the
-later branches were cut. As they are, every route ends with main
-identical to `m1-api-auth`.
-
-STATUS.md on the older branches, and the descriptions of #3 to #5
-before 2026-11-14, gave `git merge -X ours` for the squash route.
-That is unsafe; do not follow it. These instructions replace it.
-
-1. One step. Merge #6 with "Create a merge commit". It brings #2,
-   #3, #4 and #5 with it, and GitHub marks them as merged. (With
-   "Squash and merge" or "Rebase and merge" the result on main is
-   the same, but #2 to #5 stay open and have to be closed by hand.)
-   To deploy the API without auth for a while, merge #5 this way
-   instead, and #6 later; but see "Must be done by hand".
-   If one of #2 to #5 is still open after #6 is merged, it holds
-   commits that #6 lacks (a fix pushed to it later), and it must be
-   merged as well.
-2. One at a time. Merge #2, then #3, #4, #5 and #6, each with
-   "Create a merge commit". Nothing conflicts, and a fix pushed to
-   an earlier branch is carried along by merging that branch.
-3. One squashed commit each, as was done for PR #1. After a
-   squash-merge the next pull request shows conflicts in every file
-   both touched, because main then holds the same changes as a
-   different commit. After each squash-merge, set the branch just
-   merged and the next one, run both checks, and only then bring
-   the next branch up to date and squash-merge it:
-
-   ```bash
-   PREV=m1-entities NEXT=m1-persistence   # after #2; then
-   # m1-persistence m1-change-log after #3, m1-change-log
-   # m1-rest-api after #4, m1-rest-api m1-api-auth after #5
-   git fetch origin
-   # 1. Main must hold exactly the branch just merged.
-   git diff origin/main origin/$PREV
-   # 2. The next branch must already hold everything in it.
-   git diff origin/$PREV $(git merge-base origin/$PREV origin/$NEXT)
-   # Both must print nothing. Then:
-   git checkout $NEXT
-   git pull --ff-only
-   git merge -s ours origin/main
-   dotnet test
-   git push
-   ```
-
-   `-s ours` records the merge and keeps the next branch's files as
-   they are, which is right only when both checks print nothing.
-   If check 2 prints something, a commit reached `$PREV` after the
-   next branch was cut: main has it, and `-s ours` would drop it
-   from the next branch, so the next squash-merge would take it off
-   main again. Instead, merge it up the stack with ordinary merges,
-   from `$NEXT` to `m1-api-auth`, testing and pushing each:
-
-   ```bash
-   git checkout m1-persistence && git pull --ff-only
-   git merge origin/m1-entities && dotnet test && git push
-   git checkout m1-change-log && git pull --ff-only
-   git merge origin/m1-persistence && dotnet test && git push
-   # ... and so on up to m1-api-auth
-   git fetch origin
-   ```
-
-   (start from `$NEXT` and its `$PREV`), then run the checks again
-   and carry on. Played with such a fix on `m1-entities`, check 2
-   stopped the first round; after the fix was merged up the stack
-   the route ended with the fix on main and everything else
-   identical to `m1-api-auth`, and `dotnet test` passed there. In
-   later rounds `$PREV` ends in the `-s ours` merge, whose files are
-   those of its first parent, so check 2 holds there too (it passed
-   in every round of both plays).
-
-   `-X ours`, given before, is unsafe: tried on #6 it kept main's
-   side of hunks that did not conflict, and left `Program.cs`
-   mapping the API and the OpenAPI document twice, the second time
-   without auth.
-
-Merging to main starts a deploy that waits for approval of the
+### The deploy
+The merge to main started a deploy that waits for approval of the
 `production` environment. Startup then applies the five migrations
-(the last two, `ApiTokens` and `KeepTrackedDependentsOnProjectRemoval`,
-come with #6) to the production database
-at `/data/nudge.db`, which is empty so far.
+to the production database at `/data/nudge.db`, which is empty so
+far. An older run on main, from 2026-11-13, is also waiting for
+approval; it is for the commit before the merge, so do not
+approve it.
 
 ### Must be done by hand
-- Before approving the first deploy that contains #5, set the
-  owner's time zone as a Fly secret, as an IANA id (the zone the
-  owner lives in; `Europe/London` is only an example):
+- Done on 2026-11-15: the owner's time zone is staged as a Fly
+  secret and applies on the next deploy. The command, with the
+  owner's IANA id (`Europe/London` is only an example):
 
   ```bash
   fly secrets set Nudge__TimeZone=Europe/London --app nudge-gtd --stage
@@ -246,10 +154,10 @@ at `/data/nudge.db`, which is empty so far.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Review and merge PR #2, #3, #4, #5 and #6 (see above), set the
-   time zone secret, and approve the deploy. Confirm the two
-   choices in the CodeRabbit fixes on `m1-api-auth` first (see
-   "Blockers / Open Questions").
+1. Approve the deploy of the merge of #6 (the time zone secret is
+   already staged). Confirm the two choices in the CodeRabbit
+   fixes (see "Blockers / Open Questions"); both can still be
+   changed by a new commit on main.
 2. Rehearse a restore from the Litestream backup. It needs the
    owner's Fly and Tigris credentials, and is best done before the
    Todoist import (M4) puts real data in.
@@ -263,20 +171,18 @@ at `/data/nudge.db`, which is empty so far.
    sign-in cannot be checked end to end without an OAuth client the
    owner creates. Its first tasks are the shared Razor component
    library and Google OIDC with the allowlist. If the owner wants it
-   before the review, cut its branch from `m1-api-auth`.
+   before the review, cut its branch from main.
 
 ## Blockers / Open Questions
 - No blockers.
-- For the owner to decide: commit 11a1267 on `m1-api-auth` wrote
-  the APK's full path on the dev machine, user folder included,
-  into this file, and it was pushed. 33e8014 replaced it with a
-  path inside the repository, but the old line stays in that
-  branch's history. Squash-merging #6 keeps it off main; taking it
-  out of the branch needs a force-push, which was not done.
+- Decided on 2026-11-15: the owner chose a merge commit for #6,
+  so commit 11a1267, which wrote the APK's full path on the dev
+  machine, user folder included, into this file, is now in main's
+  history. 33e8014 replaced the line with a path inside the
+  repository.
 - CodeRabbit's three comments on #2 and #3 are fixed by two
-  commits on `m1-api-auth` (2026-11-15), pushed to #6 but not
-  answered on GitHub. Both choices are in DECISIONS.md under that
-  date.
+  commits (2026-11-15), merged with #6 but not answered on GitHub.
+  Both choices are in DECISIONS.md under that date.
   - #2, `Item.cs` line 175: `Repeat` on a finished item is now
     refused (`InvalidOperationException`, 409 from the API, dry
     runs too); undo the completion first. **Confirm:** refuse rather
