@@ -43,7 +43,7 @@ deployed and tested. Status values: planned | in-progress | done
 
 ---
 
-## M2: Alarm spike — `planned`
+## M2: Alarm spike — `in-progress`
 **Goal:** Prove MAUI can deliver reliable exact alarms on the
 owner's phone before building the real app.
 
@@ -55,7 +55,8 @@ owner's phone before building the real app.
 - [ ] Decision recorded: MAUI or Kotlin for the Android app
 
 **Tasks:**
-- [ ] Bare MAUI Android app with `setAlarmClock` and boot receiver
+- [x] Bare MAUI Android app with `setAlarmClock` and boot receiver
+      (`spikes/AlarmSpike`; checklist in its README)
 - [ ] Sideload and run the checklist on the phone
 
 ---
