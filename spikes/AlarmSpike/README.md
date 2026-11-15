@@ -158,33 +158,41 @@ hand.
 
 3. **Doze.** Android does not enter deep Doze while an alarm clock
    (from any app, the Clock app included) is due within the next
-   hour, so a short alarm never meets Doze. By hand: in the evening,
-   schedule "In 3 h", turn the screen off and leave the phone still,
-   on battery, until it fires. Pass as above, and the `fired` line
-   says `doze: yes` (or `light doze: yes`). If it says `doze: no`, the
-   phone never dozed; repeat with the phone left still longer.
+   hour, so a short alarm never meets Doze. To deliver an alarm clock
+   the phone leaves Doze for a moment, so the `fired` line usually
+   says `doze: no` even when the phone was dozing until then; the
+   proof that it dozed is the adb check below, or, by hand, hours of
+   stillness before the alarm.
+
+   By hand: in the evening, schedule "In 3 h", turn the screen off
+   and leave the phone still, on battery, until it fires. Pass as
+   above.
 
    With adb, much faster: force Doze first, then schedule. Forcing
    is refused ("Unable to go deep idle") while an alarm clock is due
    within the hour, and scheduling one while forced ends deep Doze at
-   once, for the same reason. So shorten that hour for the test, and
-   put it back afterwards:
+   once, for the same reason. So shorten that hour for the test (the
+   first line stops Google Play services from putting it back), and
+   restore it afterwards:
 
    ```bash
+   adb shell device_config set_sync_disabled_for_tests until_reboot
    adb shell device_config put device_idle min_time_to_alarm 60000
    # schedule "In 5 min" on the page, leave the app, then:
    adb shell input keyevent KEYCODE_SLEEP      # screen off
    adb shell dumpsys battery unplug
-   adb shell dumpsys deviceidle force-idle
-   adb shell dumpsys deviceidle get deep       # should print IDLE
-   # ... wait for the alarm: `fired` should say doze: yes ...
+   adb shell dumpsys deviceidle force-idle     # "Now forced in ..."
+   adb shell dumpsys deviceidle get deep       # IDLE or IDLE_MAINTENANCE
+   # ... wait for the alarm; check `get deep` once or twice meanwhile ...
    adb shell dumpsys deviceidle unforce
    adb shell dumpsys battery reset
    adb shell device_config delete device_idle min_time_to_alarm
+   adb shell device_config set_sync_disabled_for_tests none
    ```
 
-   (`setAlarmClock` is allowed to wake the phone out of Doze; that is
-   what is being tested.)
+   Pass as above, with `get deep` showing IDLE or IDLE_MAINTENANCE
+   until the alarm. (`setAlarmClock` is allowed to wake the phone out
+   of Doze; that is what is being tested.)
 
 4. **Airplane mode.** Turn airplane mode on (and Wi-Fi off if it
    stays on), schedule "In 5 min", leave the app, screen off. Pass as
@@ -256,10 +264,32 @@ as notes).
 - The alarm-clock icon in the status bar, and the alarm showing up as
   the "next alarm" in the clock or on the lock screen, are expected:
   that is what `setAlarmClock` does.
+- With several of the app's notifications up, Android groups them
+  into one; expand the group, then the notification, to see its
+  actions. Clear each step's notification before the next step.
 - After step 3 with adb, the phone stays in forced Doze until
   `deviceidle unforce`.
 - Installing a new APK over the old one logs `MY_PACKAGE_REPLACED`
   and a restore; that is the update path, not a reboot.
+
+## Checked on an emulator only (2026-11-15)
+
+On the Pixel 7, API 35 (Android 15), x86_64 emulator, with the
+Release APK and the app's process killed before each alarm: an alarm
+fired with the screen off, in airplane mode, and in forced deep Doze
+(with `min_time_to_alarm` shortened as in step 3), each 3.6 to 6 s
+late, almost all of it MAUI's cold start on a heavily loaded
+emulator; with the process alive, 12 to 14 ms. (The very first, a
+minute after the emulator's first boot, was 35 s late: Android
+started the process 7 s late and MAUI took 22 s to start.) After a reboot the
+boot receiver re-registered a future alarm (it then fired), fired an
+overdue one as LATE, and put back an unanswered notification. The
+notification showed Complete, Schedule and Snooze, and each worked;
+"Clear all" was detected as a swipe and the alarm came back 30 s
+later. An APK update ran the restore (`MY_PACKAGE_REPLACED`).
+`adb pull` of the log worked. The emulator is no evidence for the
+owner's phone: timings there were distorted (load average up to 57),
+and a manufacturer's own battery rules do not exist on it.
 
 ## Results
 
