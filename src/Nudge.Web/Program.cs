@@ -26,6 +26,7 @@ builder.Services.AddSingleton(ownerTimeZone);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.ConfigureHttpJsonOptions(
     options => JsonSetup.Apply(options.SerializerOptions));
+builder.Services.AddNudgeAuthentication();
 builder.Services.AddNudgeApi();
 builder.Services.AddNudgeOpenApi();
 var app = builder.Build();
@@ -46,6 +47,11 @@ using (var scope = app.Services.CreateScope())
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+// Every endpoint requires an API token unless it allows anonymous
+// requests, as the two below do; see ApiTokenAuthentication.
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapGet(
     "/healthz",
     () =>
@@ -56,13 +62,16 @@ app.MapGet(
         command.CommandText = "SELECT 1;";
         command.ExecuteScalar();
         return Results.Ok(new { status = "ok" });
-    });
+    })
+    // Fly's health check.
+    .AllowAnonymous();
 
 app.MapNudgeApi();
 
-// Served in every environment: the agent and the MCP server (M6)
-// read it.
-app.MapOpenApi(OpenApiSetup.DocumentPath);
+// Served in every environment, and without a token: the agent and
+// the MCP server (M6) read it, and it describes a public
+// repository's API.
+app.MapOpenApi(OpenApiSetup.DocumentPath).AllowAnonymous();
 
 app.Run();
 return 0;

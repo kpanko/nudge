@@ -233,7 +233,9 @@ public sealed class ProjectContextChangeTests : IDisposable
             next.AsArray().Select(c => c!["id"]!.GetValue<long>()));
 
         var change = page[0]!;
-        Assert.Equal("api", change["source"]!.GetValue<string>());
+        Assert.Equal(
+            $"api:{Api.TokenName}",
+            change["source"]!.GetValue<string>());
         Assert.Equal("Create context", change["description"]!.GetValue<string>());
         Assert.Equal("2026-11-13T17:00:00Z", change["at"]!.GetValue<string>());
         Assert.Equal("added", change["entries"]![0]!["kind"]!.GetValue<string>());

@@ -383,13 +383,20 @@ public sealed class WriteRunner(
 public sealed class ChangeSource
 {
     /// <summary>
-    /// The name recorded with every change a request makes. This is
-    /// the one place it is decided: the auth task will name the API
-    /// token, or "web" for the signed-in owner.
+    /// The name recorded with every change a request makes:
+    /// <c>api:</c> and the name of the token it was made with. This
+    /// is the one place it is decided; the web UI (M3) will add a
+    /// name for the signed-in owner.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The request was
+    /// not authenticated, which the fallback policy rules out before
+    /// a write is reached.</exception>
     public string For(HttpContext http)
     {
-        return "api";
+        var token = Auth.ApiTokenAuthentication.TokenName(http.User)
+            ?? throw new InvalidOperationException(
+                "A write was reached without an API token.");
+        return $"api:{token}";
     }
 }
 

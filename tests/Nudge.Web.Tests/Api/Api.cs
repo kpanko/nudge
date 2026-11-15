@@ -5,14 +5,19 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Nudge.Web.Auth;
 
 namespace Nudge.Web.Tests.Api;
 
 /// <summary>
 /// The real app on a database of its own, with a fixed clock, and
 /// ways to call it and to look at what it stored. Each test makes
-/// its own, so tests share nothing.
+/// its own, so tests share nothing. Requests are sent with an API
+/// token named <see cref="TokenName"/>, made with the token command
+/// line when the app starts, unless a test sends another or none
+/// with <see cref="SendAsAsync"/>.
 /// </summary>
 internal sealed class Api : IDisposable
 {
@@ -20,16 +25,39 @@ internal sealed class Api : IDisposable
     public static readonly DateTimeOffset Start =
         new(2026, 11, 13, 17, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The name of the token requests are sent with.
+    /// </summary>
+    public const string TokenName = "tests";
+
     private readonly WebApplicationFactory<Program> _app;
 
-    public Api()
+    /// <param name="everyLog">Keep every log entry, at every level
+    /// and from every category, not only what the app's settings
+    /// let through.</param>
+    public Api(bool everyLog = false)
     {
         Factory = new NudgeWebFactory { Clock = Clock };
         _app = Factory.WithWebHostBuilder(
             builder => builder.ConfigureLogging(
-                logging => logging.AddProvider(Logs)));
+                logging =>
+                {
+                    logging.AddProvider(Logs);
+                    if (everyLog)
+                    {
+                        logging.AddFilter<LogSink>(null, LogLevel.Trace);
+                    }
+                }));
         Client = _app.CreateClient();
+
+        // Made on the thread pool: blocking on it from the test's own
+        // thread could wait for ever.
+        Token = Task.Run(() => CreateTokenAsync(TokenName))
+            .GetAwaiter()
+            .GetResult();
     }
+
+    /// <summary>The token requests are sent with.</summary>
+    public string Token { get; }
 
     /// <summary>What the app logged.</summary>
     public LogSink Logs { get; } = new();
@@ -59,7 +87,35 @@ internal sealed class Api : IDisposable
             null);
     }
 
-    public async Task<Reply> SendAsync(
+    public Task<Reply> SendAsync(
+        string method,
+        string path,
+        string? body = null,
+        string? key = null,
+        string contentType = "application/json")
+    {
+        return SendAsAsync(
+            Bearer(Token),
+            method,
+            path,
+            body,
+            key,
+            contentType);
+    }
+
+    /// <summary>"Bearer" and the token, as the header is sent.
+    /// </summary>
+    public static string Bearer(string token)
+    {
+        return $"Bearer {token}";
+    }
+
+    /// <summary>
+    /// Sends a request with this <c>Authorization</c> header, sent
+    /// exactly as given, or with none if it is null.
+    /// </summary>
+    public async Task<Reply> SendAsAsync(
+        string? authorization,
         string method,
         string path,
         string? body = null,
@@ -69,6 +125,13 @@ internal sealed class Api : IDisposable
         using var message = new HttpRequestMessage(
             new HttpMethod(method),
             path);
+        if (authorization is not null)
+        {
+            Assert.True(
+                message.Headers.TryAddWithoutValidation(
+                    "Authorization",
+                    authorization));
+        }
         if (body is not null)
         {
             message.Content = new StringContent(body, Encoding.UTF8);
@@ -89,7 +152,51 @@ internal sealed class Api : IDisposable
             response.Headers.TryGetValues(
                 "Idempotent-Replayed",
                 out var replayed)
-                && replayed.Single() == "true");
+                && replayed.Single() == "true",
+            response.Headers.WwwAuthenticate.ToString());
+    }
+
+    /// <summary>
+    /// Runs the token command line on the app's database, as the
+    /// owner would on the server while the app runs.
+    /// </summary>
+    public async Task<(int Exit, string Output, string Error)> TokenAsync(
+        params string[] args)
+    {
+        // Make sure the app has started and created the file.
+        _ = Services;
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:Nudge"] =
+                        $"Data Source={Factory.DatabasePath}",
+                })
+            .Build();
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        var exit = await TokenCommand.RunAsync(
+            args,
+            configuration,
+            output,
+            error,
+            Clock);
+        return (exit, output.ToString(), error.ToString());
+    }
+
+    /// <summary>Makes a token with the command line and returns it.
+    /// </summary>
+    public async Task<string> CreateTokenAsync(string name)
+    {
+        var (exit, output, error) = await TokenAsync("create", name);
+        Assert.True(exit == 0, error);
+        return output.TrimEnd('\n', '\r');
+    }
+
+    public async Task RevokeTokenAsync(string nameOrId)
+    {
+        var (exit, _, error) = await TokenAsync("revoke", nameOrId);
+        Assert.True(exit == 0, error);
     }
 
     public Task<Reply> SendAsync(
@@ -188,7 +295,8 @@ internal sealed class Api : IDisposable
             SELECT name FROM sqlite_master
             WHERE type = 'table'
               AND name NOT IN
-                ('Changes', 'ChangeEntries', 'IdempotencyRecords')
+                ('Changes', 'ChangeEntries', 'IdempotencyRecords',
+                 'ApiTokens')
               AND name NOT LIKE '\_\_EF%' ESCAPE '\'
               AND name NOT LIKE 'sqlite\_%' ESCAPE '\'
             ORDER BY name
@@ -251,15 +359,35 @@ internal sealed class Api : IDisposable
         return (long)command.ExecuteScalar()!;
     }
 
-    /// <summary>Everything the database holds, change log and
-    /// idempotency records included.</summary>
+    /// <summary>Everything the database holds, change log,
+    /// idempotency records and tokens included.</summary>
     public string Everything()
     {
         return Dump()
             + $"Changes={Count("Changes")}"
             + $" ChangeEntries={Count("ChangeEntries")}"
             + $" IdempotencyRecords={Count("IdempotencyRecords")}"
+            + $" ApiTokens={string.Join(";", Rows("ApiTokens"))}"
             + $" sequence={Sequence()}";
+    }
+
+    /// <summary>Every row of a table, each as its values joined,
+    /// in no particular order.</summary>
+    public List<string> Rows(string table)
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT * FROM \"{table}\"";
+        using var reader = command.ExecuteReader();
+        var rows = new List<string>();
+        while (reader.Read())
+        {
+            var values = new object[reader.FieldCount];
+            reader.GetValues(values);
+            rows.Add(string.Join("|", values));
+        }
+
+        return rows;
     }
 
     private object? Sequence()
@@ -309,7 +437,8 @@ internal sealed record Reply(
     HttpStatusCode Status,
     string Body,
     string? ContentType,
-    bool Replayed)
+    bool Replayed,
+    string WwwAuthenticate = "")
 {
     public JsonNode Json => JsonNode.Parse(Body)!;
 
