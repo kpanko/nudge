@@ -22,7 +22,7 @@ deployed and tested. Status values: planned | in-progress | done
 
 ---
 
-## M1: Core, recurrence, REST API — `in-progress`
+## M1: Core, recurrence, REST API — `done`
 **Goal:** The domain is correct and reachable over HTTP.
 
 **Acceptance criteria:**
@@ -43,7 +43,7 @@ deployed and tested. Status values: planned | in-progress | done
 
 ---
 
-## M2: Alarm spike — `planned`
+## M2: Alarm spike — `in-progress`
 **Goal:** Prove MAUI can deliver reliable exact alarms on the
 owner's phone before building the real app.
 

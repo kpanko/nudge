@@ -1,16 +1,14 @@
 # Status
 
 **Last updated:** 2026-11-15
-**Current milestone:** M1 Core, recurrence, REST API
+**Current milestone:** M2 Alarm spike
 
 ## In Progress
 - M1. All six tasks are on main: PR #6 was merged on 2026-11-15
   with a merge commit (359a633), which brought #2, #3, #4 and #5
-  with it. Nothing has been deployed, so M1 stays `in-progress`:
-  by MILESTONES.md a milestone ends deployed and tested. What is
-  left: approve the deploy, make the first API token on the
-  server, and call the deployed API with it (see "Must be done by
-  hand").
+  with it. M1 is `done` as of 2026-11-15: the owner approved the
+  deploy, made the first API token on the server, and called the
+  deployed API with it (200).
   - CI passed on #6 at 97d9e48 before the merge. Nobody reviewed
     #4, #5 or #6: CodeRabbit skipped them. Its three comments on
     #2 and #3 are fixed in the merge but not answered on GitHub
@@ -19,8 +17,6 @@
   2026-11-15 as it was done. Everything needed to review it is in
   this file, in the six pull request descriptions, and in the
   DECISIONS.md entries of those three dates.
-- The time zone secret `Nudge__TimeZone` was staged on Fly on
-  2026-11-15, so the deploy can be approved.
 - M2, the alarm spike, task 1 (built, waiting for the owner's phone):
   PR #7, branch `m2-alarm-spike`, `spikes/AlarmSpike`.
   https://github.com/kpanko/nudge/pull/7
@@ -62,7 +58,9 @@ approve it.
   health check never passes. Locally, `Nudge__TimeZone` does the
   same for `dotnet run` and `docker run -e`; in Development the
   machine's own zone is used when it is unset.
-- After the first deploy that contains #6, make a token on the
+- Done on 2026-11-15 (the owner made the `planning-agent` token
+  and a call with it returned 200). For another token: after the
+  first deploy that contains #6, make a token on the
   server. It is printed once, on stdout; store it where the client
   will read it (a password manager, the MCP server's secret):
 
@@ -154,15 +152,14 @@ approve it.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Approve the deploy of the merge of #6 (the time zone secret is
-   already staged). Confirm the two choices in the CodeRabbit
-   fixes (see "Blockers / Open Questions"); both can still be
-   changed by a new commit on main.
+1. Confirm the two choices in the CodeRabbit fixes (see
+   "Blockers / Open Questions"); both can still be changed by a
+   new commit on main.
 2. Rehearse a restore from the Litestream backup. It needs the
    owner's Fly and Tigris credentials, and is best done before the
    Todoist import (M4) puts real data in.
-3. After the deploy, make the first token and call the API with it
-   (see "Must be done by hand"); then M1 can be marked `done`.
+3. Keep the `planning-agent` token for the MCP server (M6);
+   nothing reads it until then.
 4. M2: run the alarm spike's checklist on the phone (PR #7; see
    "Must be done by hand"). It does not wait for M1.
 5. M3, the web UI, is the next milestone to build. It was left
