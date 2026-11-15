@@ -294,6 +294,79 @@ public sealed class AuthTests : IDisposable
             (await _api.SendAsync("GET", "/api/nothing-here")).Status);
     }
 
+    /// <summary>Requests no endpoint maps as sent, and whether each
+    /// routes to one of the two anonymous endpoints all the same.
+    /// </summary>
+    public static IEnumerable<object[]> Unmapped =>
+        new (string Method, string Path, bool Anonymous)[]
+        {
+            ("HEAD", "/api/items", false),
+            ("OPTIONS", "/api/items", false),
+            ("OPTIONS", "/api/changes/1/undo", false),
+            ("TRACE", "/api/items", false),
+            ("POST", "/healthz", false),
+            ("OPTIONS", "/healthz", false),
+            ("HEAD", "/healthz", false),
+            ("DELETE", "/healthz", false),
+            ("POST", "/openapi/v1.json", false),
+            ("PUT", "/openapi/v1.json", false),
+            ("DELETE", "/openapi/v1.json", false),
+            ("OPTIONS", "/openapi/v1.json", false),
+            ("GET", "/api/nothing-here", false),
+            ("POST", "/api/nothing-here", false),
+            ("GET", "/api", false),
+            ("GET", "/api/", false),
+            ("GET", "/nothing-here", false),
+            ("GET", "/", false),
+            ("GET", "/openapi/v2.json", false),
+            ("GET", "/openapi/v1.yaml", false),
+            ("GET", "/openapi", false),
+            ("GET", "/API/ITEMS", false),
+            ("GET", "/api/items/", false),
+            ("POST", "/API/CONTEXTS", false),
+            ("POST", "/api/contexts/", false),
+            ("GET", "/HEALTHZ", true),
+            ("GET", "/healthz/", true),
+            ("GET", "/OPENAPI/V1.JSON", true),
+            ("GET", "/openapi/v1.json/", true),
+        }.Select(r => new object[] { r.Method, r.Path, r.Anonymous });
+
+    // The fallback policy covers what no endpoint maps: other
+    // methods, other paths and other spellings are all 401 without a
+    // token, unless routing takes them to one of the two anonymous
+    // endpoints anyway. Nothing is written either way.
+    [Theory]
+    [MemberData(nameof(Unmapped))]
+    public async Task UnmappedRequest_WithoutAToken_Is401(
+        string method,
+        string path,
+        bool anonymous)
+    {
+        var before = _api.Everything();
+        var body = method is "POST" or "PUT" ? """{"name":"phone"}""" : null;
+
+        var reply = await _api.SendAsAsync(null, method, path, body);
+
+        if (anonymous)
+        {
+            Assert.True(
+                reply.Status == HttpStatusCode.OK,
+                $"{method} {path}: {(int)reply.Status}");
+        }
+        else
+        {
+            Assert.True(
+                reply.Status == HttpStatusCode.Unauthorized,
+                $"{method} {path}: {(int)reply.Status} {reply.Body}");
+            if (method != "HEAD")
+            {
+                AssertRefused(reply, $"{method} {path}");
+            }
+        }
+
+        Assert.Equal(before, _api.Everything());
+    }
+
     // Authentication comes before the write runner: nothing is read
     // or written, not even an idempotency record.
     [Theory]
