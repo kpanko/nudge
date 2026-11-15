@@ -4,9 +4,14 @@
 **Current milestone:** M1 Core, recurrence, REST API
 
 ## In Progress
-- M1. Five of its six tasks are built and waiting for review; only
-  API-token auth is left. Nothing from them is on main yet. Each
-  pull request contains the ones before it plus its own commits.
+- M1. All six tasks are built and waiting for review. Nothing from
+  them is on main yet, and nothing has been deployed, so M1 stays
+  `in-progress`: by MILESTONES.md a milestone ends deployed and
+  tested. What is left: review and merge the five pull requests
+  below, set the time zone secret, approve the deploy, make the
+  first API token on the server, and call the deployed API with it
+  (see "Must be done by hand"). Each pull request contains the ones
+  before it plus its own commits.
   - PR #2, branch `m1-entities`: the entities.
     https://github.com/kpanko/nudge/pull/2
   - PR #3, branch `m1-persistence`: EF Core persistence.
@@ -16,27 +21,30 @@
   - PR #5, branch `m1-rest-api`: REST endpoints with OpenAPI, dry
     runs and idempotency keys.
     https://github.com/kpanko/nudge/pull/5
+  - PR #6, branch `m1-api-auth`: API-token auth.
+    https://github.com/kpanko/nudge/pull/6
   - CI passed on #2, #3 and #4. CodeRabbit has not been triggered
     on any of them.
 - The owner did not follow the sessions of 2026-11-13 and
   2026-11-14. Everything needed to review them is in this file, in
-  the four pull request descriptions, and in the DECISIONS.md
+  the five pull request descriptions, and in the DECISIONS.md
   entries dated 2026-11-13 and 2026-11-14.
 - **Before approving the deploy of #5**, set the owner's time zone
   on Fly (see "Must be done by hand" below). Without it the new
   version stops at startup.
 
 ### How to merge them
-All four pull requests target main. Every route below was tried on
+All five pull requests target main. Every route below was tried on
 throwaway local branches and ends with main identical to
-`m1-rest-api`:
+`m1-api-auth`:
 
-1. One step. Merge #5 with "Create a merge commit". It brings #2,
-   #3 and #4 with it, and GitHub marks them as merged. (With
+1. One step. Merge #6 with "Create a merge commit". It brings #2,
+   #3, #4 and #5 with it, and GitHub marks them as merged. (With
    "Squash and merge" or "Rebase and merge" the result on main is
-   the same, but #2, #3 and #4 stay open and have to be closed by
-   hand.)
-2. One at a time. Merge #2, then #3, then #4, then #5, each with
+   the same, but #2 to #5 stay open and have to be closed by hand.)
+   To deploy the API without auth for a while, merge #5 this way
+   instead, and #6 later; but see "Must be done by hand".
+2. One at a time. Merge #2, then #3, #4, #5 and #6, each with
    "Create a merge commit". Nothing conflicts.
 3. One squashed commit each, as was done for PR #1. After a
    squash-merge the next pull request shows conflicts in every file
@@ -46,21 +54,30 @@ throwaway local branches and ends with main identical to
 
    ```bash
    git fetch origin
+   # The branch just squash-merged must match main exactly; stop
+   # if this prints anything.
+   git diff origin/main origin/m1-entities   # m1-persistence after
+                                             # #3, and so on
    git checkout m1-persistence   # after #2; m1-change-log after
-                                 # #3; m1-rest-api after #4
-   git merge -X ours origin/main
+                                 # #3; m1-rest-api after #4;
+                                 # m1-api-auth after #5
+   git merge -s ours origin/main
    dotnet test
    git push
    ```
 
-   `-X ours` keeps the branch's side wherever the two differ. That
-   is right as long as nothing but the earlier pull requests has
-   gone into main.
+   `-s ours` records the merge and keeps the branch's files as they
+   are, which is right because main then holds exactly the earlier
+   pull requests (the `git diff` checks it). This replaces the
+   `-X ours` given here before: tried on #6, `-X ours` kept main's
+   side of hunks that did not conflict, and left `Program.cs`
+   mapping the API and the OpenAPI document twice, the second time
+   without auth (`dotnet test` fails on it, but nothing else would).
 
 Merging to main starts a deploy that waits for approval of the
-`production` environment. Startup then applies the three migrations
-to the production database at `/data/nudge.db`, which is empty so
-far.
+`production` environment. Startup then applies the four migrations
+(the fourth, `ApiTokens`, comes with #6) to the production database
+at `/data/nudge.db`, which is empty so far.
 
 ### Must be done by hand
 - Before approving the first deploy that contains #5, set the
@@ -79,10 +96,34 @@ far.
   health check never passes. Locally, `Nudge__TimeZone` does the
   same for `dotnet run` and `docker run -e`; in Development the
   machine's own zone is used when it is unset.
-- Until API-token auth is deployed the API is open to anyone who
-  can reach the app. Do not put real data in before then.
+- After the first deploy that contains #6, make a token on the
+  server. It is printed once, on stdout; store it where the client
+  will read it (a password manager, the MCP server's secret):
+
+  ```bash
+  fly ssh console --app nudge-gtd -C "dotnet /app/Nudge.Web.dll token create planning-agent"
+  ```
+
+  The first line on stderr must read `Database: /data/nudge.db`; if
+  it names another file, the token went into a new, empty database:
+  delete that file and run the command again in a shell where
+  `ConnectionStrings__Nudge` is set (the image sets it). Then
+  check it with `curl -H "Authorization: Bearer <token>"
+  https://nudge-gtd.fly.dev/api/items` (200; without the header,
+  401). `token list` shows the tokens; `token revoke <name-or-id>`
+  stops one at once. Names are never reused, revoked ones included.
+- If only #5 is deployed, before #6, the API is open to anyone who
+  can reach the app. Do not put real data in before #6 is deployed.
 
 ## Recently Completed
+- API-token auth (PR #6). Tokens are `nudge_` and 32 random bytes;
+  only their SHA-256 hash is stored, in `ApiTokens` (fourth
+  migration), outside the change log and undo. They are made,
+  listed and revoked with `dotnet Nudge.Web.dll token create|list|
+  revoke`, never over HTTP. Every endpoint needs
+  `Authorization: Bearer <token>` through the fallback policy,
+  except `/healthz` and `/openapi/v1.json`; every failure is the
+  same 401. Changes are recorded as made by `api:<token name>`.
 - REST API (PR #5). Every endpoint is under `/api`: items (create
   whole, edit, reschedule, clear the due date, set or stop the
   repeat rule, complete, delete, add or remove a context or a
@@ -114,15 +155,14 @@ far.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Review and merge PR #2, #3, #4 and #5 (see above), set the
+1. Review and merge PR #2, #3, #4, #5 and #6 (see above), set the
    time zone secret, and approve the deploy.
 2. Rehearse a restore from the Litestream backup. It needs the
    owner's Fly and Tigris credentials, and is best done before the
    Todoist import (M4) puts real data in.
-3. API-token auth, on its own branch. Attach it to the `/api`
-   route group in `ApiRoutes.MapNudgeApi`, and name the token in
-   `ChangeSource.For`. Decide whether agent tokens must send an
-   `Idempotency-Key`.
+3. After the deploy, make the first token and call the API with it
+   (see "Must be done by hand"); then M1 can be marked `done`.
+4. M2, the alarm spike, once M1 is done.
 
 ## Blockers / Open Questions
 - No blockers.
@@ -258,10 +298,84 @@ far.
         owner's agreement because it changes Core: an exception
         type of Core's own for broken rules, the only one the API
         maps.
+  - In API-token auth (PR #6). The three newest DECISIONS.md
+    entries explain these:
+    37. A token is `nudge_` and 32 random bytes in base64url; only
+        its SHA-256 hash (hex) is stored, in `ApiTokens`. No
+        expiry, no scopes, no last-used column, no rate limiting;
+        all deferred.
+    38. Tokens are managed only by the command line on the same
+        executable (`token create <name>`, `token list`,
+        `token revoke <name-or-id>`), not over HTTP, so a token
+        cannot mint another. The web UI may add it behind sign-in
+        (M3). The command prints the database it uses on stderr.
+    39. Names: 1 to 64 letters, digits, `-`, `_`, `.`; unique
+        among all tokens, revoked included, ignoring the case of
+        ASCII letters; and not shaped like a GUID, since `revoke`
+        takes a name or an id. Case-insensitivity and the GUID rule
+        are additions to the design given for this task.
+    40. The command line applies migrations only when some are
+        pending, as startup does, so on the running server it leaves
+        the migration lock alone. It does not need `Nudge:TimeZone`.
+    41. Every endpoint needs a token through the authorization
+        fallback policy; only `/healthz` and `/openapi/v1.json` are
+        anonymous. A path that matches no endpoint is also 401
+        without a token, not 404.
+    42. Every failure is the same 401 with `WWW-Authenticate:
+        Bearer` and the same problem details. Only the
+        `Authorization` header is read; the scheme name `Bearer` is
+        accepted in any case.
+    43. Making or revoking a token records no change; token rows are
+        out of the change log and out of undo. Each change made
+        through the API has the source `api:<token name>`.
+    44. Idempotency keys stay optional and are not scoped per token.
+        The MCP server (M6) must always send one.
+    45. Startup's database preparation moved from `Program.cs` into
+        `DatabaseSetup.Prepare`, unchanged, so that the command line
+        does the same.
+    46. Existing tests changed: the `Api` helper sends a token by
+        default (`SendAsAsync` sends another or none);
+        `ProjectContextChangeTests` expects `api:tests` as the
+        source; `TestDatabase.DataTables` and `Api.Dump` leave out
+        `ApiTokens`, as they leave out `IdempotencyRecords`;
+        `OpenApiTests` also checks the 401 and the requirement.
+    47. The merge route with squashed commits now uses
+        `git merge -s ours` instead of `-X ours`; see "How to merge
+        them".
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
 - What was and was not checked:
+  - For PR #6, on 2026-11-14:
+    - `dotnet build` is clean and `dotnet test` passes, in Debug
+      and Release: 510 tests (95 core, 415 web), up from 435. The
+      CI steps (restore, Release build, tests without rebuilding)
+      were run locally. Each of the four commits builds and passes
+      on its own.
+    - Thirteen safeguards were broken in turn (no fallback policy,
+      a revoked token accepted, token rows in the change log, undo
+      allowed on the token table, the token logged, the source
+      without the token's name, another anonymous endpoint, a token
+      read from the query, a different 401 for a bad token, more
+      than the token on stdout, names reusable after a revoke, the
+      hash in `token list`, the token stored instead of its hash).
+      A test fails for each.
+    - The Release build was run on a scratch database: `token
+      create` on a fresh database (before the app had ever started)
+      migrated it; with the token a read was 200 and a write 201,
+      recorded as `api:<name>`; without it 401 with
+      `WWW-Authenticate: Bearer`; after `token revoke` 401; a second
+      revoke exited 1; the app's log held neither the token nor the
+      header.
+    - The Docker image was built and run with a volume on `/data`.
+      `docker exec <container> dotnet /app/Nudge.Web.dll token
+      create ...`, run in the running container, from `/app` and
+      from `/`, wrote to `/data/nudge.db`; the API answered 200 and
+      201 with the token, 401 without it and after the revoke.
+    - Not checked: `fly ssh console` (in particular that its
+      session has `ConnectionStrings__Nudge` from the image; the
+      `Database:` line shows it), the image under Litestream with a
+      second process writing, the deploy, and any real client.
   - For PR #5, on 2026-11-14:
     - `dotnet build` is clean (no warnings) and `dotnet test`
       passes, in Debug and Release: 435 tests (95 core, 340 web),

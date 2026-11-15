@@ -39,7 +39,7 @@ deployed and tested. Status values: planned | in-progress | done
 - [x] EF Core + SQLite persistence and migrations
 - [x] Change log, soft delete, undo
 - [x] REST endpoints with OpenAPI; dry-run and idempotency keys
-- [ ] API-token auth
+- [x] API-token auth
 
 ---
 

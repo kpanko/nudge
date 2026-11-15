@@ -714,3 +714,107 @@ example `RuleViolationException`), have the API map only that type,
 and let everything else surface as a 500.
 
 ---
+
+## 2026-11-14 API tokens are random, stored as hashes, made on the command line
+
+**Context:** VISION.md asks for API tokens beside Google sign-in.
+The clients are the planning agent (through the MCP server, M6), the
+Android app (M5) and the web UI (M3). Google sign-in belongs to M3.
+
+**Decision:** A token is `nudge_` followed by 32 bytes from
+`RandomNumberGenerator` in base64url. Only its SHA-256 hash, in hex,
+is stored, in the table `ApiTokens` (id, name, hash, created,
+revoked), so a copy of the database or a backup gives no usable
+token. A name is 1 to 64 letters, digits, `-`, `_` or `.`, is
+unique ignoring the case of ASCII letters among all tokens, revoked
+ones included, and cannot look like a GUID, because `revoke` takes a
+name or an id. Tokens are made, listed and revoked only by a command
+line on the same executable (`dotnet Nudge.Web.dll token create
+<name>`, `token list`, `token revoke <name-or-id>`), which prints a
+new token once on stdout and everything else on stderr. It reads the
+app's configuration for the database, applies pending migrations as
+startup does (only when some are pending, so on the running server
+it leaves the migration lock alone), and needs no time zone. There
+is no HTTP endpoint for tokens, so a token cannot mint another. No
+expiry, no scopes, no record of last use, and no rate limiting:
+256 random bits cannot be guessed, and recording use would make
+every request a write.
+
+**Alternatives considered:** Tokens managed over HTTP (a leaked
+agent token could make itself a successor; that belongs behind
+Google sign-in in M3). Storing the token encrypted (the key would
+sit next to it). A slow hash such as PBKDF2 (only needed for
+guessable secrets; it would cost every request). Names compared
+exactly ("Agent" and "agent" would read as one in the log).
+
+**Consequences:** A lost token cannot be shown again; revoke it and
+make another, under a new name. After the first deploy the owner
+makes the first token by hand on the server. Expiry, scopes and
+last use are deferred; adding last use should not be a write per
+request. The web UI may add token management behind sign-in in M3.
+
+---
+
+## 2026-11-14 Every endpoint needs a token unless it opts out
+
+**Context:** An endpoint added later must not be open by mistake,
+and a refusal should not help anyone probe for tokens.
+
+**Decision:** A custom authentication scheme reads only
+`Authorization: Bearer <token>` (the scheme name in any case; never
+the query string or a cookie), hashes the token and looks up an
+active one by hash. The principal carries the token's id and name.
+The authorization fallback policy requires an authenticated user,
+so every endpoint is protected unless it allows anonymous requests;
+exactly two do: `/healthz` (Fly's health check) and
+`/openapi/v1.json` (it describes a public repository's API). A path
+that matches no endpoint is 401 too without a token. Every failure
+(no header, another scheme, an empty, malformed, unknown or revoked
+token) is the same 401 with `WWW-Authenticate: Bearer` and the same
+problem details. Authentication runs before the write runner, so a
+refused request reads no body and writes nothing, not even an
+idempotency record. Neither a token nor the header is logged. The
+OpenAPI document has an HTTP bearer scheme, and every operation that
+is not anonymous requires it and documents the 401.
+
+**Alternatives considered:** `RequireAuthorization()` on the `/api`
+group (an endpoint mapped outside it would be open). Distinct
+answers for unknown and revoked tokens (they tell an attacker what
+exists). A 404 for unknown paths without a token (it maps the API
+for anyone).
+
+**Consequences:** Tests fail if any endpoint but those two becomes
+anonymous, if any other endpoint answers without a token, if a
+refused write changes anything, or if a token, its hash or the
+header reaches the log. The web UI's sign-in (M3) will be a second
+scheme next to this one.
+
+---
+
+## 2026-11-14 Tokens are security state; the change log names them
+
+**Context:** The change log records every save and undo puts rows
+back. A token row in it would put hashes into API responses, and an
+undo of a revocation would bring a token back.
+
+**Decision:** Like `IdempotencyRecords`, `ApiTokens` is left out of
+the change log and out of undo: making or revoking a token records
+no change, and an undo of an entry naming the table is refused.
+Every change made through the API is recorded with the source
+`api:<token name>`, set in `ChangeSource.For`, which refuses to name
+a request that was not authenticated. Idempotency keys stay optional
+and are not scoped per token: the request fingerprint does not
+include the token, so two tokens sending the same key and request
+get one result. The MCP server (M6) must always send a key.
+
+**Alternatives considered:** Logging token rows with the hash left
+out (undo would still revive a revoked token). Keys scoped per token
+(one owner; a retry from a rotated token should still be a replay).
+Keys mandatory for agent tokens (there are no kinds of token yet;
+the MCP server is where the rule belongs).
+
+**Consequences:** Who made and revoked tokens, and when, is in the
+token table itself, not the log. Renaming a token is not offered,
+because old changes would name a token that no longer has the name.
+
+---
