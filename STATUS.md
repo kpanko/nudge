@@ -43,7 +43,8 @@
   and not in the Docker image, so merging deploys nothing new, though
   the push to main still starts the deploy job, which waits for
   approval. The phone checklist and results table are in
-  `spikes/AlarmSpike/README.md`. CI was not watched.
+  `spikes/AlarmSpike/README.md`. CI's `test` job passed on c8230e4;
+  it builds `Nudge.sln` only, so it says nothing about the spike.
 
 ### How to merge them
 All five pull requests target main. Each route below was played
@@ -172,9 +173,11 @@ at `/data/nudge.db`, which is empty so far.
 - If only #5 is deployed, before #6, the API is open to anyone who
   can reach the app. Do not put real data in before #6 is deployed.
 - The alarm spike (M2 task 2), on the phone:
-  1. Install the APK. It is already built on the dev machine at
-     `C:\Users\panko\src\nudge\spikes\AlarmSpike\bin\Release\net9.0-android\nudge.spike.alarms-Signed.apk`
-     (from the code in PR #7; to rebuild it, see the spike's README).
+  1. Install the APK. It is already built on the dev machine, in
+     this repository's folder, at
+     `spikes/AlarmSpike/bin/Release/net9.0-android/nudge.spike.alarms-Signed.apk`
+     (from the code in PR #7; git ignores that folder, so the file
+     is there on any branch; to rebuild it, see the spike's README).
      With USB debugging: `adb install -r <that path>`; or copy it to
      the phone and open it in Files, allowing "Install unknown apps".
   2. Open it and allow notifications. Do not exempt it from battery
@@ -491,6 +494,9 @@ at `/data/nudge.db`, which is empty so far.
   - For the alarm spike (PR #7), on 2026-11-15:
     - The Release build from the command line is clean (no
       warnings). The APK path is under "Must be done by hand".
+      Repeated from a fresh checkout of c8230e4 in a temporary
+      worktree, restore included: no warnings, 3 min 21 s, and an
+      APK of the same size as the first.
     - On the Pixel 7 API 35 emulator already installed (run with
       `-read-only`, so the AVD is unchanged), with the Release APK
       and the process killed before each alarm: fired with the
