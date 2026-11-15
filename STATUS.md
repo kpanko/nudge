@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-15
 **Current milestone:** M1 Core, recurrence, REST API
 
 ## In Progress
@@ -141,11 +141,19 @@ at `/data/nudge.db`, which is empty so far.
   fly ssh console --app nudge-gtd -C "dotnet /app/Nudge.Web.dll token create planning-agent"
   ```
 
-  The first line on stderr must read `Database: /data/nudge.db`; if
-  it names another file, the token went into a new, empty database:
-  delete that file and run the command again in a shell where
-  `ConnectionStrings__Nudge` is set (the image sets it). Then
-  check it with `curl -H "Authorization: Bearer <token>"
+  Run it only after the new version has finished starting (the
+  health check passes): on a database with a migration still
+  pending the command refuses and changes nothing. The first line
+  on stderr reads `Database: /data/nudge.db`. If it names another
+  file and says there is no database there, the session lacks the
+  image's `ConnectionStrings__Nudge`; nothing was created. Open a
+  shell with `fly ssh console --app nudge-gtd` and run it there as
+
+  ```sh
+  ConnectionStrings__Nudge='Data Source=/data/nudge.db' dotnet /app/Nudge.Web.dll token create planning-agent
+  ```
+
+  Then check it with `curl -H "Authorization: Bearer <token>"
   https://nudge-gtd.fly.dev/api/items` (200; without the header,
   401). `token list` shows the tokens; `token revoke <name-or-id>`
   stops one at once. Names are never reused, revoked ones included.
@@ -368,8 +376,8 @@ at `/data/nudge.db`, which is empty so far.
     44. Idempotency keys stay optional and are not scoped per token.
         The MCP server (M6) must always send one.
     45. Startup's database preparation moved from `Program.cs` into
-        `DatabaseSetup.Prepare`, unchanged, so that the command line
-        does the same.
+        `DatabaseSetup.Prepare`, unchanged. (The command line no
+        longer uses it; see 48.)
     46. Existing tests changed: the `Api` helper sends a token by
         default (`SendAsAsync` sends another or none);
         `ProjectContextChangeTests` expects `api:tests` as the
@@ -379,11 +387,48 @@ at `/data/nudge.db`, which is empty so far.
     47. The merge route with squashed commits now uses two checks
         and `git merge -s ours` instead of `-X ours`; see "How to
         merge them". The descriptions of #3, #4 and #5 point there.
+  - After the security review of PR #6, on 2026-11-15:
+    48. The token command never creates or migrates a database; this
+        replaces 40. It opens the database with SQLite's
+        `Mode=ReadWrite`, refuses (exit 1, nothing created) when the
+        file is missing, naming the path and
+        `ConnectionStrings__Nudge`, and refuses a database with a
+        pending migration, saying to start the app first. Only the
+        app migrates, at startup.
+    49. The request log (`Microsoft.AspNetCore.Hosting.Diagnostics`,
+        which writes each URL with its query) is held at Warning in
+        code, so a token sent in the query string cannot reach the
+        log whatever the settings file says.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
 - What was and was not checked:
-  - For PR #6, on 2026-11-14:
+  - For PR #6 after the security review, on 2026-11-15:
+    - `dotnet build` is clean and `dotnet test` passes, in Debug
+      and Release: 545 tests (95 core, 450 web). Each of the three
+      new commits builds and passes on its own.
+    - New tests: `create`, `list` and `revoke` on a missing file
+      refuse and leave the folder empty; on a database one
+      migration behind they refuse and the file is byte for byte
+      the same. `Tokens_AreNeverLogged` runs with every category
+      set to Trace by settings, sends tokens in the query string,
+      and fails if the code filter is removed (tried). Probes
+      without a token: HEAD, OPTIONS and TRACE on `/api` routes,
+      other methods on `/healthz` and `/openapi/v1.json`, unmapped
+      paths in and outside `/api`, `/openapi/v2.json`, and upper
+      case and trailing slashes: all 401, except the upper-case and
+      trailing-slash spellings of the two anonymous endpoints,
+      which route to them (200); nothing is written.
+    - Docker, with every log category at Trace: in the running
+      container `token create` wrote to `/data/nudge.db` and the
+      token worked; with `ConnectionStrings__Nudge` unset (in
+      `/app` and in `/tmp`) and with a relative path from `/`, it
+      refused, exit 1, and no database file appeared. A token in
+      the query string was 401 and did not appear in the log.
+    - Not checked: `fly ssh console` itself, and the command run
+      while the deployed app is starting.
+  - For PR #6, on 2026-11-14 (the "fresh database" checks below
+    describe the behaviour replaced by 48):
     - `dotnet build` is clean and `dotnet test` passes, in Debug
       and Release: 510 tests (95 core, 415 web), up from 435. The
       CI steps (restore, Release build, tests without rebuilding)

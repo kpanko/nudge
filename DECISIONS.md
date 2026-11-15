@@ -818,3 +818,39 @@ token table itself, not the log. Renaming a token is not offered,
 because old changes would name a token that no longer has the name.
 
 ---
+
+## 2026-11-15 The token command never creates or migrates a database
+
+**Context:** The entry of 2026-11-14 on API tokens said the token
+command applies pending migrations as startup does, so that it works
+on a fresh database. A security review showed what that allows: run
+without `ConnectionStrings__Nudge` (a `fly ssh console` session
+without the image's environment, say) it created `nudge.db` where it
+ran and minted a working-looking token into it, exit 0; and run
+while the app was starting after a deploy, it could migrate beside
+the app, after dropping the migration lock.
+
+**Decision:** This replaces that part of the earlier entry. The
+database must already exist and have no pending migrations; the
+command never calls the migration or lock code. It opens the file
+with SQLite's `Mode=ReadWrite`, which fails on a missing file, so
+creating one is impossible rather than only checked. A missing file
+is refused, exit 1, with the path looked at and
+`ConnectionStrings__Nudge` named; a pending migration is refused,
+saying to start the app or wait for it to finish starting. The
+`Database: <file>` line stays first on stderr. Separately, the
+request log category `Microsoft.AspNetCore.Hosting.Diagnostics`,
+which writes each URL with its query string, is held at Warning in
+code, so a token sent in the query cannot reach the log whatever
+the settings file says.
+
+**Alternatives considered:** Keeping the migration and only warning
+about a new file (a warning on stderr is easy to miss in a script).
+Creating the database but refusing to mint into an empty one (the
+stray file would still be left behind).
+
+**Consequences:** The first token can only be made after the app
+has started once on the database. Tests make their databases the
+way startup does before running the command.
+
+---
