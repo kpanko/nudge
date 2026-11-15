@@ -23,12 +23,16 @@
     https://github.com/kpanko/nudge/pull/5
   - PR #6, branch `m1-api-auth`: API-token auth.
     https://github.com/kpanko/nudge/pull/6
-  - CI passed on all five (#5 at f495212, #6 at 3c15b05).
-    CodeRabbit has not been triggered on any of them.
-- The owner did not follow the sessions of 2026-11-13 and
-  2026-11-14. Everything needed to review them is in this file, in
-  the five pull request descriptions, and in the DECISIONS.md
-  entries dated 2026-11-13 and 2026-11-14.
+  - CI passed on all five (#5 at f495212, #6 at 33e8014; commits
+    on `m1-api-auth` after that one change only this file).
+    CodeRabbit reviewed #2 and #3 on 2026-11-14 and left three
+    comments that nobody has answered (see "Blockers / Open
+    Questions"). It skipped #4 to #7: a review there has to be
+    asked for by ticking "Trigger review" in its comment.
+- The owner did not follow the work of 2026-11-13, 2026-11-14 and
+  2026-11-15 as it was done. Everything needed to review it is in
+  this file, in the six pull request descriptions, and in the
+  DECISIONS.md entries of those three dates.
 - **Before approving the deploy of #5**, set the owner's time zone
   on Fly (see "Must be done by hand" below). Without it the new
   version stops at startup.
@@ -39,7 +43,9 @@
   merged before or after them, with "Create a merge commit" or a
   squash. It touches only its own folder and the M2 section of
   MILESTONES.md (M2 `in-progress`, task 1 checked); a test merge
-  into `m1-api-auth` had no conflict. The app is not in `Nudge.sln`
+  into `m1-api-auth` had no conflict. Until #7 is merged,
+  MILESTONES.md on every other branch still shows M2 as `planned`
+  with that task open. The app is not in `Nudge.sln`
   and not in the Docker image, so merging deploys nothing new, though
   the push to main still starts the deploy job, which waits for
   approval. The phone checklist and results table are in
@@ -192,6 +198,13 @@ at `/data/nudge.db`, which is empty so far.
      out of the repository if your notes in it are personal.
 
 ## Recently Completed
+- Alarm spike app (PR #7), the first task of M2. `spikes/AlarmSpike`
+  is a MAUI app for Android, outside `Nudge.sln`: it schedules test
+  alarms with `AlarmManager.SetAlarmClock`, shows a notification
+  with Complete, Schedule and Snooze, notices a swipe and brings the
+  alarm back, and registers pending alarms again after a reboot. It
+  was built and run on an emulator only; the phone test is M2's
+  second task and is the owner's.
 - API-token auth (PR #6). Tokens are `nudge_` and 32 random bytes;
   only their SHA-256 hash is stored, in `ApiTokens` (fourth
   migration), outside the change log and undo. They are made,
@@ -232,7 +245,9 @@ at `/data/nudge.db`, which is empty so far.
 
 ## Next Up
 1. Review and merge PR #2, #3, #4, #5 and #6 (see above), set the
-   time zone secret, and approve the deploy.
+   time zone secret, and approve the deploy. Decide first what to
+   do about CodeRabbit's three comments on #2 and #3 (see
+   "Blockers / Open Questions").
 2. Rehearse a restore from the Litestream backup. It needs the
    owner's Fly and Tigris credentials, and is best done before the
    Todoist import (M4) puts real data in.
@@ -240,9 +255,47 @@ at `/data/nudge.db`, which is empty so far.
    (see "Must be done by hand"); then M1 can be marked `done`.
 4. M2: run the alarm spike's checklist on the phone (PR #7; see
    "Must be done by hand"). It does not wait for M1.
+5. M3, the web UI, is the next milestone to build. It was left
+   unstarted on 2026-11-15 on purpose: it builds on the M1 design in
+   #2 to #6, which the owner has not reviewed yet, and its Google
+   sign-in cannot be checked end to end without an OAuth client the
+   owner creates. Its first tasks are the shared Razor component
+   library and Google OIDC with the allowlist. If the owner wants it
+   before the review, cut its branch from `m1-api-auth`.
 
 ## Blockers / Open Questions
 - No blockers.
+- For the owner to decide: commit 11a1267 on `m1-api-auth` wrote
+  the APK's full path on the dev machine, user folder included,
+  into this file, and it was pushed. 33e8014 replaced it with a
+  path inside the repository, but the old line stays in that
+  branch's history. Squash-merging #6 keeps it off main; taking it
+  out of the branch needs a force-push, which was not done.
+- CodeRabbit's three comments on #2 and #3 were noticed only at the
+  end of the 2026-11-15 session. They are unanswered and nothing
+  was changed for them. As read against `m1-api-auth`:
+  - #2, `src/Nudge.Core/Item.cs` line 175 (minor): `Repeat` on a
+    finished one-off item installs the rule but leaves
+    `CompletedAt` set, so the item repeats on paper, can no longer
+    be completed, and its reminders stay silent. The API can reach
+    this (set the repeat rule of a finished item); the change is
+    logged and can be undone. Refusing it, or reopening the item,
+    is a change in `Nudge.Core`, for the owner to choose.
+  - #3, `src/Nudge.Web/Data/ItemConfiguration.cs` line 65 and
+    `ProjectConfiguration.cs` line 23 (major): with
+    `DeleteBehavior.Restrict` on an optional foreign key, EF sets
+    the key to null on a tracked item or child project when its
+    project is removed, so the project row is deleted and the
+    assignment is lost, instead of the delete being refused. It
+    suggests `DeleteBehavior.ClientNoAction`. Nothing in `src`
+    removes a project, item or context row today (deletes are
+    soft), so no request can reach this; it is a trap for later
+    code, such as the import. The claim about EF was not tried
+    here.
+  The simplest place for a fix is a new commit on top of the stack
+  (`m1-api-auth`, or a pull request stacked on #6), not the two
+  branches the comments are on, which would have to be merged up
+  through every later branch.
 - The choices below were made on 2026-11-13 without the owner. Each
   is explained in DECISIONS.md under that date. All are cheap to
   change now and get dearer once the API and the import are built
