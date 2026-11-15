@@ -34,6 +34,22 @@ public sealed class ApiProblem : Exception
 
     public IDictionary<string, object?>? Extensions { get; }
 
+    /// <summary>
+    /// The exception this problem was made from, when it was made
+    /// from one: a refusal by <c>Nudge.Core</c> or by the database.
+    /// It is logged, never sent. Core signals its rules with the
+    /// same exception types a bug inside it would throw, so the log
+    /// is where such a bug, answered as a 400 or 409, can be seen.
+    /// </summary>
+    public Exception? Cause { get; private set; }
+
+    /// <summary>Records what this problem was made from.</summary>
+    public ApiProblem Because(Exception cause)
+    {
+        Cause = cause;
+        return this;
+    }
+
     /// <summary>A 400 for one input.</summary>
     public static ApiProblem Invalid(
         string field,
@@ -69,8 +85,27 @@ public sealed class ApiProblem : Exception
             extensions: extensions);
     }
 
-    public IResult ToResult()
+    /// <summary>
+    /// The response. A problem made from an exception is logged
+    /// first, at Warning, with the exception; the request body is
+    /// not logged.
+    /// </summary>
+    public IResult ToResult(HttpContext http)
     {
+        if (Cause is not null)
+        {
+            http.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger(typeof(ApiProblem))
+                .LogWarning(
+                    Cause,
+                    "{Method} {Path} was answered {Status}: {Problem}",
+                    http.Request.Method,
+                    http.Request.Path.Value,
+                    Status,
+                    Detail ?? Title);
+        }
+
         if (Errors is not null)
         {
             return Results.ValidationProblem(

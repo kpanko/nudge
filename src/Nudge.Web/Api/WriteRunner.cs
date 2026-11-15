@@ -128,7 +128,7 @@ public sealed class WriteRunner(
         {
             // The transaction, if one was begun, has been rolled back
             // by leaving its block.
-            return problem.ToResult();
+            return problem.ToResult(http);
         }
     }
 

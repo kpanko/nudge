@@ -37,7 +37,7 @@ public sealed class WriteGuaranteeTests : IDisposable
     /// with whether it goes through the write runner.</summary>
     private List<(string Name, bool Runner)> Endpoints()
     {
-        return _api.Factory.Services
+        return _api.Services
             .GetRequiredService<EndpointDataSource>()
             .Endpoints
             .OfType<RouteEndpoint>()

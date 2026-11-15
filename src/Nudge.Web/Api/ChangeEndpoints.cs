@@ -69,7 +69,7 @@ internal static class ChangeEndpoints
         }
         catch (ApiProblem problem)
         {
-            return problem.ToResult();
+            return problem.ToResult(http);
         }
     }
 
@@ -91,7 +91,7 @@ internal static class ChangeEndpoints
         }
         catch (ApiProblem problem)
         {
-            return problem.ToResult();
+            return problem.ToResult(http);
         }
     }
 
@@ -111,11 +111,12 @@ internal static class ChangeEndpoints
         catch (UndoRefusedException e)
         {
             throw ApiProblem.Conflict(
-                "The change cannot be undone.",
-                new Dictionary<string, object?>
-                {
-                    ["reasons"] = e.Reasons,
-                });
+                    "The change cannot be undone.",
+                    new Dictionary<string, object?>
+                    {
+                        ["reasons"] = e.Reasons,
+                    })
+                .Because(e);
         }
 
         return new WriteOutcome<ChangeView>(

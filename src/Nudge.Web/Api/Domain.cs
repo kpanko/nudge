@@ -38,15 +38,15 @@ public static class Domain
         }
         catch (ArgumentException e)
         {
-            throw ApiProblem.Invalid(field, Message(e));
+            throw ApiProblem.Invalid(field, Message(e)).Because(e);
         }
         catch (FormatException e)
         {
-            throw ApiProblem.Invalid(field, e.Message);
+            throw ApiProblem.Invalid(field, e.Message).Because(e);
         }
         catch (InvalidOperationException e)
         {
-            throw ApiProblem.Conflict(e.Message);
+            throw ApiProblem.Conflict(e.Message).Because(e);
         }
     }
 
@@ -69,8 +69,9 @@ public static class Domain
                 StringComparison.Ordinal))
         {
             return ApiProblem.Conflict(
-                "Another context already has this name, whatever the"
-                + " case of its letters.");
+                    "Another context already has this name, whatever"
+                    + " the case of its letters.")
+                .Because(e);
         }
 
         return null;

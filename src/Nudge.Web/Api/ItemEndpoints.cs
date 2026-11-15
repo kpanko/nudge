@@ -178,7 +178,7 @@ internal static class ItemEndpoints
         }
         catch (ApiProblem problem)
         {
-            return problem.ToResult();
+            return problem.ToResult(http);
         }
     }
 
@@ -195,7 +195,7 @@ internal static class ItemEndpoints
         }
         catch (ApiProblem problem)
         {
-            return problem.ToResult();
+            return problem.ToResult(http);
         }
     }
 

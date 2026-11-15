@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Nudge.Web.Tests.Api;
 
@@ -17,11 +20,22 @@ internal sealed class Api : IDisposable
     public static readonly DateTimeOffset Start =
         new(2026, 11, 13, 17, 0, 0, TimeSpan.Zero);
 
+    private readonly WebApplicationFactory<Program> _app;
+
     public Api()
     {
         Factory = new NudgeWebFactory { Clock = Clock };
-        Client = Factory.CreateClient();
+        _app = Factory.WithWebHostBuilder(
+            builder => builder.ConfigureLogging(
+                logging => logging.AddProvider(Logs)));
+        Client = _app.CreateClient();
     }
+
+    /// <summary>What the app logged.</summary>
+    public LogSink Logs { get; } = new();
+
+    /// <summary>The running app's services.</summary>
+    public IServiceProvider Services => _app.Services;
 
     public FixedClock Clock { get; } = new(Start);
 
@@ -32,6 +46,7 @@ internal sealed class Api : IDisposable
     public void Dispose()
     {
         Client.Dispose();
+        _app.Dispose();
         Factory.Dispose();
     }
 
@@ -259,7 +274,7 @@ internal sealed class Api : IDisposable
     private SqliteConnection Open()
     {
         // Make sure the app has started and created the file.
-        _ = Factory.Services;
+        _ = Services;
         var connection = new SqliteConnection(
             $"Data Source={Factory.DatabasePath};Pooling=False");
         connection.Open();

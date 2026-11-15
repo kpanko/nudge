@@ -65,7 +65,7 @@ internal static class ProjectEndpoints
         }
         catch (ApiProblem problem)
         {
-            return problem.ToResult();
+            return problem.ToResult(http);
         }
     }
 
@@ -84,7 +84,7 @@ internal static class ProjectEndpoints
         }
         catch (ApiProblem problem)
         {
-            return problem.ToResult();
+            return problem.ToResult(http);
         }
     }
 

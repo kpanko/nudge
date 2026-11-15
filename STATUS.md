@@ -187,7 +187,7 @@ far.
         tables.
     21. There is no separate "restore" or "reopen": undoing the
         deletion or the completion does it.
-  - In the REST API (PR #5). The eight DECISIONS.md entries dated
+  - In the REST API (PR #5). The DECISIONS.md entries dated
     2026-11-14 explain these:
     22. The owner's time zone is required configuration
         (`Nudge:TimeZone`, an IANA id), checked at startup; in
@@ -247,6 +247,13 @@ far.
         comments are compiled into it, so `Nudge.Web` now generates
         a documentation file, with the warnings for members and
         parameters without comments turned off there.
+    36. Nudge.Core signals broken rules with the same exception types
+        a bug inside it would throw, so the API cannot tell them
+        apart. Each refusal made from an exception is logged at
+        Warning with it (never the body). Follow-up, needing the
+        owner's agreement because it changes Core: an exception
+        type of Core's own for broken rules, the only one the API
+        maps.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context

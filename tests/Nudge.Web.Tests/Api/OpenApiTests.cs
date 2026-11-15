@@ -82,7 +82,7 @@ public sealed class OpenApiTests : IDisposable
     {
         var document = await DocumentAsync();
         var paths = document["paths"]!;
-        var endpoints = _api.Factory.Services
+        var endpoints = _api.Services
             .GetRequiredService<EndpointDataSource>()
             .Endpoints
             .OfType<RouteEndpoint>()

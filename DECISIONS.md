@@ -680,3 +680,33 @@ caller's extra writes (harder to follow).
 the second.
 
 ---
+
+## 2026-11-14 Refusals from Nudge.Core are logged, because a bug looks the same
+
+**Context:** `Nudge.Core` signals a broken rule with
+`InvalidOperationException` ("already completed") or
+`ArgumentException` (a blank title), and the API answers those with
+409 and 400. A programming error inside Core (a null `.Value`, a
+`Single()` on the wrong count) throws the same types, so it would be
+answered as the client's mistake and never show up as a failure.
+
+**Decision:** Core is not changed in this task. Every problem the API
+makes from an exception (in `Domain.Call`, `Domain.Refused` and the
+undo endpoint) carries that exception, and is logged at Warning with
+it, the method, the path and the status, when it is turned into a
+response. The request body is not logged. Problems the API finds
+itself (an unknown property, a stale occurrence) have no exception
+and are not logged.
+
+**Alternatives considered:** Leaving it (a Core bug would be
+invisible). Answering every `InvalidOperationException` with 500
+(every rule Core refuses would look like a crash).
+
+**Consequences:** A Core bug shows in the log as a Warning, not as a
+500, so it is found by reading the log, not by an alert. Follow-up,
+which needs the owner's agreement because it changes Core and its
+tests: give Core one exception type of its own for broken rules (for
+example `RuleViolationException`), have the API map only that type,
+and let everything else surface as a 500.
+
+---
