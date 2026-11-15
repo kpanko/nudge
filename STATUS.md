@@ -264,7 +264,7 @@ far.
 - What was and was not checked:
   - For PR #5, on 2026-11-14:
     - `dotnet build` is clean (no warnings) and `dotnet test`
-      passes, in Debug and Release: 419 tests (95 core, 324 web),
+      passes, in Debug and Release: 435 tests (95 core, 340 web),
       up from 225. The CI steps (restore, Release build, tests
       without rebuilding) were run locally.
     - Seven safeguards were broken in turn (a dry run committing
