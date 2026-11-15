@@ -17,21 +17,15 @@
   2026-11-15 as it was done. Everything needed to review it is in
   this file, in the six pull request descriptions, and in the
   DECISIONS.md entries of those three dates.
-- M2, the alarm spike, task 1 (built, waiting for the owner's phone):
-  PR #7, branch `m2-alarm-spike`, `spikes/AlarmSpike`.
+- M2, the alarm spike: not started in its new form. On 2026-11-15
+  the owner decided the Android app will be Kotlin, offline-first
+  (see DECISIONS.md under that date), so the spike is to be
+  rebuilt as a bare Kotlin app. The MAUI spike, PR #7, was closed
+  without merging; its branch `m2-alarm-spike` still exists, and
+  its checklist in `spikes/AlarmSpike/README.md` there can be
+  reused. Everything further down in this file about the MAUI
+  spike describes that closed branch.
   https://github.com/kpanko/nudge/pull/7
-  It is cut from main and **independent of #2 to #6**: it can be
-  merged before or after them, with "Create a merge commit" or a
-  squash. It touches only its own folder and the M2 section of
-  MILESTONES.md (M2 `in-progress`, task 1 checked); a test merge
-  into `m1-api-auth` had no conflict. Until #7 is merged,
-  MILESTONES.md on every other branch still shows M2 as `planned`
-  with that task open. The app is not in `Nudge.sln`
-  and not in the Docker image, so merging deploys nothing new, though
-  the push to main still starts the deploy job, which waits for
-  approval. The phone checklist and results table are in
-  `spikes/AlarmSpike/README.md`. CI's `test` job passed on c8230e4;
-  it builds `Nudge.sln` only, so it says nothing about the spike.
 
 ### The deploy
 The merge to main started a deploy that waits for approval of the
@@ -86,24 +80,6 @@ approve it.
   stops one at once. Names are never reused, revoked ones included.
 - If only #5 is deployed, before #6, the API is open to anyone who
   can reach the app. Do not put real data in before #6 is deployed.
-- The alarm spike (M2 task 2), on the phone:
-  1. Install the APK. It is already built on the dev machine, in
-     this repository's folder, at
-     `spikes/AlarmSpike/bin/Release/net9.0-android/nudge.spike.alarms-Signed.apk`
-     (from the code in PR #7; git ignores that folder, so the file
-     is there on any branch; to rebuild it, see the spike's README).
-     With USB debugging: `adb install -r <that path>`; or copy it to
-     the phone and open it in Files, allowing "Install unknown apps".
-  2. Open it and allow notifications. Do not exempt it from battery
-     optimisation.
-  3. Run the checklist in `spikes/AlarmSpike/README.md` (steps 0 to
-     9: baselines with the app open and swiped from recents, Doze,
-     airplane mode, two reboot cases, the three actions, swipe-away),
-     adding a note in the app before each step.
-  4. Copy or pull the log, fill in the README's results table, and
-     decide MAUI or Kotlin. Record the decision in DECISIONS.md and
-     tick the M2 criteria and task 2 in MILESTONES.md. Keep the log
-     out of the repository if your notes in it are personal.
 
 ## Recently Completed
 - Alarm spike app (PR #7), the first task of M2. `spikes/AlarmSpike`
@@ -160,13 +136,14 @@ approve it.
    Todoist import (M4) puts real data in.
 3. Keep the `planning-agent` token for the MCP server (M6);
    nothing reads it until then.
-4. M2: run the alarm spike's checklist on the phone (PR #7; see
-   "Must be done by hand"). It does not wait for M1.
+4. M2: build the Kotlin alarm spike and run its checklist on the
+   phone. It needs Android Studio or the Android SDK with Gradle
+   on this machine; whether they are installed was not checked.
 5. M3, the web UI, is the next milestone to build. It was left
    unstarted on 2026-11-15 on purpose: it builds on the M1 design in
    #2 to #6, which the owner has not reviewed yet, and its Google
    sign-in cannot be checked end to end without an OAuth client the
-   owner creates. Its first tasks are the shared Razor component
+   owner creates. Its first tasks are the Razor component
    library and Google OIDC with the allowlist. If the owner wants it
    before the review, cut its branch from main.
 

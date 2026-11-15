@@ -35,8 +35,11 @@ change my tasks safely.
 - **Recurrence is correct and boring.** Completing a repeating item
   once advances it exactly once. Setting a due date never removes the
   repeat rule.
-- **One language.** C# everywhere so the owner can read, review and
-  debug all of it.
+- **Two languages, each where it fits.** C# for the server, the web
+  UI and the API; Kotlin for the Android app, so the phone gets a
+  fully native, fast app.
+- **Offline without thinking about it.** The phone works with no
+  signal and syncs in the background.
 
 ## Architecture Overview
 
@@ -45,8 +48,7 @@ change my tasks safely.
 | Domain | `Nudge.Core`: items, projects, recurrence, reminders |
 | Backend | ASP.NET Core minimal API, EF Core, SQLite |
 | Web UI | Blazor, served by the same app |
-| Shared UI | Razor class library used by web and Android |
-| Android | .NET MAUI Blazor Hybrid + native alarm code in C# |
+| Android | Kotlin, Jetpack Compose, local database, background sync |
 | Agent API | REST with OpenAPI, plus an MCP server |
 | Auth | Google sign-in, one allowlisted account; API tokens |
 | Hosting | Fly.io, SQLite on a volume, Litestream backup |
@@ -59,6 +61,16 @@ Alarms are re-registered after reboot. The server sends a push only
 to say "data changed, re-sync", and as a backup when the phone has
 not confirmed a due reminder. Notification actions: Complete,
 Schedule, Snooze.
+
+### Offline and sync
+
+The phone keeps its own copy of the data and applies changes
+locally, repeating items included, so it has the recurrence rules
+in Kotlin as well. The server stays the authority: offline changes
+are queued and replayed with idempotency keys, and what the server
+answers replaces the phone's own result. One set of recurrence
+test cases, kept as data, is run by both the C# and the Kotlin
+engine.
 
 ### Recurrence
 
@@ -85,7 +97,7 @@ Test: `dotnet test`
 
 - Re-notify interval for unacknowledged reminders, and whether it
   should escalate.
-- Whether MAUI proves reliable for exact alarms on the owner's phone
-  (decided by the alarm spike; fallback is a Kotlin app).
-- Offline editing on the phone: read-only cache first, or full
-  offline writes with sync.
+- Whether exact alarms are reliable on the owner's phone (the
+  alarm spike, now in Kotlin).
+- Sync rules when the phone and the server have both changed the
+  same item.

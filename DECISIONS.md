@@ -1054,3 +1054,40 @@ it runs. A test upgrades a database with rows from the `ApiTokens`
 migration and checks that they come through.
 
 ---
+
+## 2026-11-15 The Android app is written in Kotlin, offline-first
+
+**Context:** The plan was a .NET MAUI Blazor Hybrid app sharing
+Razor components with the web UI, with the M2 spike to show whether
+MAUI could deliver exact alarms. The owner wants the most native and
+fastest app possible, and does not want a .NET runtime and a WebView
+on the phone. The owner also wants offline use to be seamless, as in
+Todoist: no signal needed, sync in the background.
+
+**Decision:** The Android app is Kotlin with Jetpack Compose. It
+keeps a local database, applies changes locally and syncs in the
+background. The recurrence engine is written a second time in
+Kotlin. The server stays the authority: offline changes are queued
+and replayed with idempotency keys, and the server's answer replaces
+the phone's. Recurrence test cases are kept as a data file that both
+engines run, the two named regression tests among them. The owner
+made this decision on 2026-11-15, before the MAUI spike was run on
+the phone.
+
+**Alternatives considered:** MAUI Blazor Hybrid (a WebView UI on the
+.NET runtime: slower start, larger app, the least native). MAUI with
+native controls (one recurrence engine, but still the .NET runtime
+the owner objected to). A Kotlin thin client that asks the server
+for everything (no second engine, but no offline use).
+
+**Consequences:** "One language" in VISION.md is replaced. There is
+no shared UI library; the web UI's components are its own. The
+recurrence rules exist twice and can drift, which the shared test
+cases and the server's authority are there to contain. The server
+needs an endpoint for changes since a sync point before M5. M2
+becomes a Kotlin alarm spike; the MAUI spike (PR #7) was closed
+without merging, and its DECISIONS.md entries of this date apply
+only to that closed branch. A second toolchain (Android Studio,
+Gradle) is needed, in CI too.
+
+---

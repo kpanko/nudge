@@ -44,18 +44,19 @@ deployed and tested. Status values: planned | in-progress | done
 ---
 
 ## M2: Alarm spike — `in-progress`
-**Goal:** Prove MAUI can deliver reliable exact alarms on the
-owner's phone before building the real app.
+**Goal:** Prove a Kotlin app can deliver reliable exact alarms on
+the owner's phone before building the real app.
 
 **Acceptance criteria:**
 - [ ] A hard-coded alarm fires on time in Doze, in airplane mode,
       and after a reboot
 - [ ] Notification shows Complete, Schedule, Snooze actions
 - [ ] Swipe-away is detected
-- [ ] Decision recorded: MAUI or Kotlin for the Android app
+- [x] Decision recorded: MAUI or Kotlin for the Android app
+      (Kotlin, 2026-11-15)
 
 **Tasks:**
-- [ ] Bare MAUI Android app with `setAlarmClock` and boot receiver
+- [ ] Bare Kotlin Android app with `setAlarmClock` and boot receiver
 - [ ] Sideload and run the checklist on the phone
 
 ---
@@ -71,7 +72,7 @@ owner's phone before building the real app.
 - [ ] Playwright smoke test passes in CI
 
 **Tasks:**
-- [ ] Shared Razor component library
+- [ ] Razor components for the web UI
 - [ ] Google OIDC with allowlist
 - [ ] Views listed above
 
@@ -96,6 +97,8 @@ owner's phone before building the real app.
 
 **Acceptance criteria:**
 - [ ] Sync, lists, quick add, complete, schedule, snooze
+- [ ] All of those work with no signal, repeating items included,
+      and sync in the background when the signal returns
 - [ ] Swiped reminders re-notify and appear in Missed reminders
 - [ ] Delivery log: scheduled, fired, shown, acknowledged
 - [ ] Server backup push when a due reminder is unconfirmed
@@ -104,7 +107,11 @@ owner's phone before building the real app.
 - [ ] One-week soak on the phone with no missed reminder
 
 **Tasks:**
-- [ ] MAUI Blazor Hybrid shell reusing shared components
+- [ ] Server: an endpoint for what changed since the last sync
+- [ ] Recurrence test cases as a data file, run by the C# engine
+- [ ] Kotlin and Compose app with a local database
+- [ ] Recurrence engine in Kotlin, passing the same test cases
+- [ ] Offline change queue and background sync
 - [ ] Local alarm scheduling, boot receiver, notification actions
 - [ ] Push for re-sync and backup delivery
 - [ ] APK built by GitHub Actions
