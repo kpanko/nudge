@@ -433,8 +433,38 @@ public sealed class AuthTests : IDisposable
 
         await api.SendAsAsync("Bearer not-a-token", "GET", "/api/items");
 
+        // A token in the query string, where it does not belong. The
+        // request log would write the URL; only the app's own filter,
+        // not its settings file, keeps it out here.
+        foreach (var token in new[] { api.Token, unknown })
+        {
+            await api.SendAsAsync(
+                null,
+                "GET",
+                $"/api/items?access_token={token}");
+            await api.SendAsAsync(
+                Api.Bearer(api.Token),
+                "GET",
+                $"/api/items?token={token}");
+            await api.SendAsAsync(
+                null,
+                "GET",
+                $"/healthz?access_token={token}");
+        }
+
         var entries = api.Logs.Entries;
-        Assert.Contains(entries, e => e.Level == LogLevel.Debug);
+
+        // The settings did turn logging up.
+        Assert.Contains(
+            entries,
+            e => e.Level == LogLevel.Debug
+                && e.Category.StartsWith(
+                    "Microsoft.AspNetCore.",
+                    StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            entries,
+            e => e.Category == "Microsoft.AspNetCore.Hosting.Diagnostics"
+                && e.Level < LogLevel.Warning);
         foreach (var entry in entries)
         {
             var text = $"{entry.Message} {entry.Exception}";

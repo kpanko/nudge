@@ -29,24 +29,41 @@ internal sealed class Api : IDisposable
     /// </summary>
     public const string TokenName = "tests";
 
+    /// <summary>Every category the app's settings name, and the
+    /// default.</summary>
+    private static readonly string[] EveryCategory =
+    [
+        "Default",
+        "Microsoft",
+        "Microsoft.AspNetCore",
+        "Microsoft.AspNetCore.Hosting.Diagnostics",
+        "Microsoft.EntityFrameworkCore.Database.Command",
+    ];
+
     private readonly WebApplicationFactory<Program> _app;
 
-    /// <param name="everyLog">Keep every log entry, at every level
-    /// and from every category, not only what the app's settings
-    /// let through.</param>
+    /// <param name="everyLog">Run with settings that turn every
+    /// category's logging up to Trace, as a careless settings file
+    /// could, instead of the app's own; what the app filters in its
+    /// code still applies.</param>
     public Api(bool everyLog = false)
     {
         Factory = new NudgeWebFactory { Clock = Clock };
         _app = Factory.WithWebHostBuilder(
-            builder => builder.ConfigureLogging(
-                logging =>
+            builder =>
+            {
+                builder.ConfigureLogging(
+                    logging => logging.AddProvider(Logs));
+                if (everyLog)
                 {
-                    logging.AddProvider(Logs);
-                    if (everyLog)
+                    foreach (var category in EveryCategory)
                     {
-                        logging.AddFilter<LogSink>(null, LogLevel.Trace);
+                        builder.UseSetting(
+                            $"Logging:LogLevel:{category}",
+                            "Trace");
                     }
-                }));
+                }
+            });
         Client = _app.CreateClient();
 
         // Made on the thread pool: blocking on it from the test's own

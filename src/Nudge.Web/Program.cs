@@ -14,6 +14,14 @@ if (args is [TokenCommand.Name, .. var tokenArgs])
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = DatabaseSetup.ConnectionString(builder.Configuration);
+
+// The request log writes every URL with its query string, where a
+// token sent in the wrong place would end up. It is kept at Warning
+// here, after the settings files are read, so that no settings file
+// (or the lack of one) can turn it on.
+builder.Logging.AddFilter(
+    "Microsoft.AspNetCore.Hosting.Diagnostics",
+    LogLevel.Warning);
 builder.Services.AddDbContext<NudgeDbContext>(
     options => options.UseSqlite(connectionString));
 
