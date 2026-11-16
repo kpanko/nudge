@@ -28,7 +28,7 @@ internal sealed partial class WebUiHost : IDisposable
 {
     public const string OwnerEmail = "owner@example.test";
     public const string OwnerSubject = "100000000000000000001";
-    public const string ClientId = "nudge-tests.apps.example.test";
+    public const string ClientId = FakeGoogle.ClientId;
     public const string ClientSecret = "not-a-real-secret";
 
     private static readonly IReadOnlyDictionary<string, string?> NoSettings =
