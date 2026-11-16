@@ -104,7 +104,7 @@ internal static class ChangeEndpoints
         }
     }
 
-    private static async Task<WriteOutcome<ChangeView>> UndoAsync(
+    internal static async Task<WriteOutcome<ChangeView>> UndoAsync(
         Write<NoBody> write)
     {
         var id = write.RouteLong("id");

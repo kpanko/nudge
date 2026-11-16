@@ -1,0 +1,47 @@
+@inject WebWrites Writes
+
+@* An item in a list: a button to complete it, its title as a link to
+   its page, and what is set on it. *@
+<li class="item">
+    <ActionForm Name="@($"complete-{Scope}{Item.Id:N}")"
+                Action="CompleteAsync"
+                Class="inline">
+        <input type="hidden" name="occurrence" value="@Occurrence" />
+        <button type="submit" class="complete">Complete</button>
+    </ActionForm>
+    <a href="@($"/items/{Item.Id}")">@Item.Title</a>
+    <ItemFacts Item="Item" />
+    @ChildContent
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public Nudge.Core.Item Item { get; set; } = default!;
+
+    /// <summary>Tells apart forms of an item listed more than once
+    /// on a page.</summary>
+    [Parameter]
+    public string Scope { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The occurrence shown, for a repeating item, so that
+    /// a page left open cannot complete the next one too.</summary>
+    private string Occurrence => Item.Recurrence is null
+        ? ""
+        : Words.Date(Item.OccurrenceDate);
+
+    private Task<WebWriteResult> CompleteAsync(
+        IFormCollection form,
+        string key)
+    {
+        if (!Words.TryDate(form["occurrence"], out var occurrence))
+        {
+            return Task.FromResult(
+                WebWriteResult.Invalid("The occurrence is not a date."));
+        }
+
+        return Writes.CompleteAsync(key, Item.Id, occurrence);
+    }
+}

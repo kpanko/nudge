@@ -1,0 +1,415 @@
+@page "/items/{Id:guid}"
+@inject UiQueries Queries
+@inject WebWrites Writes
+@inject NavigationManager Navigation
+
+@if (_item is { } item)
+{
+    <PageTitle>@item.Title - Nudge</PageTitle>
+
+    <h1>@item.Title</h1>
+    <p>
+        @Words.List(item.State)
+        <ItemFacts Item="item" />
+    </p>
+    @if (item.CompletedAt is { } completed)
+    {
+        <p class="done">
+            Completed @Words.Instant(completed, Queries.Zone). Undo that
+            change on the <a href="/changes">changes</a> page to reopen it.
+        </p>
+    }
+    else
+    {
+        <ActionForm Name="complete" Action="CompleteAsync" Class="inline">
+            <input type="hidden"
+                   name="occurrence"
+                   value="@Occurrence(item)" />
+            <button type="submit" class="complete">
+                Complete@(item.Recurrence is null
+                    ? ""
+                    : $" the occurrence of {Words.Date(item.OccurrenceDate)}")
+            </button>
+        </ActionForm>
+    }
+
+    <section class="group">
+        <h2>Edit</h2>
+        <ActionForm Name="edit" Action="EditAsync" Class="fields">
+            <label>
+                Title
+                <input type="text" name="title" value="@item.Title" required />
+            </label>
+            <label>
+                Notes
+                <textarea name="notes" rows="3">@item.Notes</textarea>
+            </label>
+            <label>
+                List
+                <select name="list">
+                    @foreach (var list in Enum.GetValues<ItemState>())
+                    {
+                        <option value="@list" selected="@(list == item.State)">
+                            @Words.List(list)
+                        </option>
+                    }
+                </select>
+            </label>
+            <label>
+                Priority
+                <select name="priority">
+                    @foreach (var priority in Enum.GetValues<Priority>())
+                    {
+                        <option value="@priority"
+                                selected="@(priority == item.Priority)">
+                            @Words.Priority(priority)
+                        </option>
+                    }
+                </select>
+            </label>
+            <label>
+                Project
+                <select name="projectId">
+                    <option value="">No project</option>
+                    @foreach (var project in _projects)
+                    {
+                        <option value="@project.Id"
+                                selected="@(project.Id == item.Project?.Id)">
+                            @project.Name
+                        </option>
+                    }
+                </select>
+            </label>
+            <label class="check">
+                <input type="checkbox"
+                       name="doNotAutoReschedule"
+                       value="true"
+                       checked="@item.DoNotAutoReschedule" />
+                Do not reschedule on its own
+            </label>
+            <button type="submit">Save</button>
+        </ActionForm>
+    </section>
+
+    <section class="group">
+        <h2>Defer</h2>
+        <ActionForm Name="defer" Action="DeferAsync" Class="inline">
+            <label>
+                Until
+                <input type="date"
+                       name="deferUntil"
+                       value="@Words.Date(item.DeferUntil)" />
+            </label>
+            <button type="submit">Defer</button>
+            <span class="hint">Empty to stop deferring.</span>
+        </ActionForm>
+    </section>
+
+    <section class="group">
+        <h2>Due</h2>
+        <ActionForm Name="due" Action="RescheduleAsync" Class="inline">
+            <input type="date"
+                   name="date"
+                   value="@Words.Date(item.DueDate)"
+                   aria-label="Due date"
+                   required />
+            <input type="time"
+                   name="time"
+                   value="@Words.Time(item.DueTime)"
+                   aria-label="Due time" />
+            <button type="submit">Reschedule</button>
+        </ActionForm>
+        @if (item.DueDate is not null)
+        {
+            <ActionForm Name="clear-due" Action="ClearDueAsync" Class="inline">
+                <button type="submit">Clear the due date</button>
+            </ActionForm>
+        }
+    </section>
+
+    <section class="group">
+        <h2>Repeat</h2>
+        <ActionForm Name="repeat" Action="RepeatAsync" Class="fields">
+            <label>
+                Rule (RRULE)
+                <input type="text"
+                       name="rule"
+                       value="@(item.Recurrence?.Rule.ToString())"
+                       placeholder="FREQ=WEEKLY;BYDAY=FR"
+                       required />
+            </label>
+            <label>
+                Mode
+                <select name="mode">
+                    @foreach (var mode in Enum.GetValues<RecurrenceMode>())
+                    {
+                        <option value="@mode"
+                                selected="@(mode == item.Recurrence?.Mode)">
+                            @Words.Mode(mode)
+                        </option>
+                    }
+                </select>
+            </label>
+            <label>
+                Starting
+                <input type="date" name="start" />
+            </label>
+            <span class="hint">Empty to start from the due date.</span>
+            <button type="submit">Set the repeat rule</button>
+        </ActionForm>
+        @if (item.Recurrence is not null)
+        {
+            <ActionForm Name="stop-repeating"
+                        Action="StopRepeatingAsync"
+                        Class="inline">
+                <button type="submit">Stop repeating</button>
+            </ActionForm>
+        }
+    </section>
+
+    <section class="group">
+        <h2>Reminders</h2>
+        <ul>
+            @foreach (var reminder in item.Reminders)
+            {
+                <li>
+                    @Reminder(reminder)
+                    <ActionForm Name="@($"remove-reminder-{reminder.Id:N}")"
+                                Action="RemoveReminder(reminder.Id)"
+                                Class="inline">
+                        <button type="submit">Remove</button>
+                    </ActionForm>
+                </li>
+            }
+        </ul>
+        <ActionForm Name="add-reminder" Action="AddReminderAsync" Class="inline">
+            <label>
+                Minutes from the start of the due day
+                <input type="number" name="offsetMinutes" value="540" required />
+            </label>
+            <button type="submit">Add reminder</button>
+        </ActionForm>
+    </section>
+
+    <section class="group">
+        <h2>Contexts</h2>
+        <ul>
+            @foreach (var context in item.Contexts.OrderBy(c => c.Name))
+            {
+                <li>
+                    @context.Name
+                    <ActionForm Name="@($"remove-context-{context.Id:N}")"
+                                Action="RemoveContext(context.Id)"
+                                Class="inline">
+                        <button type="submit">Remove</button>
+                    </ActionForm>
+                </li>
+            }
+        </ul>
+        @if (_contexts.Any(c => item.Contexts.All(i => i.Id != c.Id)))
+        {
+            <ActionForm Name="add-context" Action="AddContextAsync" Class="inline">
+                <select name="contextId" aria-label="Context">
+                    @foreach (var context in _contexts
+                        .Where(c => item.Contexts.All(i => i.Id != c.Id)))
+                    {
+                        <option value="@context.Id">@context.Name</option>
+                    }
+                </select>
+                <button type="submit">Add context</button>
+            </ActionForm>
+        }
+    </section>
+
+    <section class="group">
+        <h2>Delete</h2>
+        <ActionForm Name="delete" Action="DeleteAsync" Then="/inbox" Class="inline">
+            <button type="submit" class="danger">Delete this item</button>
+        </ActionForm>
+    </section>
+}
+
+@code {
+    private Item? _item;
+    private IReadOnlyList<Project> _projects = [];
+    private IReadOnlyList<Context> _contexts = [];
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _item = await Queries.ItemAsync(Id);
+        if (_item is null)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        _projects = await Queries.ProjectsAsync();
+        _contexts = await Queries.ContextsAsync();
+    }
+
+    private string Reminder(Reminder reminder)
+    {
+        if (reminder.At is { } at)
+        {
+            return "At " + Words.Instant(at, Queries.Zone);
+        }
+
+        var minutes = (int)reminder.Offset!.Value.TotalMinutes;
+        var fires = reminder.FireTime(_item!, Queries.Zone);
+        return $"{minutes} minutes from the start of the due day"
+            + (fires is { } f ? $" ({Words.Instant(f, Queries.Zone)})" : "");
+    }
+
+    private static string Occurrence(Item item)
+    {
+        return item.Recurrence is null ? "" : Words.Date(item.OccurrenceDate);
+    }
+
+    private Func<IFormCollection, string, Task<WebWriteResult>> RemoveReminder(
+        Guid reminderId)
+    {
+        return (form, key) => Writes.RemoveReminderAsync(key, Id, reminderId);
+    }
+
+    private Func<IFormCollection, string, Task<WebWriteResult>> RemoveContext(
+        Guid contextId)
+    {
+        return (form, key) => Writes.RemoveContextAsync(key, Id, contextId);
+    }
+
+    private static Task<WebWriteResult> Invalid(string message)
+    {
+        return Task.FromResult(WebWriteResult.Invalid(message));
+    }
+
+    private Task<WebWriteResult> CompleteAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Words.TryDate(form["occurrence"], out var occurrence)
+            ? Writes.CompleteAsync(key, Id, occurrence)
+            : Invalid("The occurrence is not a date.");
+    }
+
+    private Task<WebWriteResult> EditAsync(
+        IFormCollection form,
+        string key)
+    {
+        if (!Words.TryEnum<ItemState>(form["list"], out var list)
+            || !Words.TryEnum<Priority>(form["priority"], out var priority)
+            || !Words.TryGuid(form["projectId"], out var projectId))
+        {
+            return Invalid("Choose a list, a priority and a project.");
+        }
+
+        return Writes.EditAsync(
+            key,
+            Id,
+            new Nudge.Web.Api.ItemPatch
+            {
+                Title = form["title"].ToString().Trim(),
+                Notes = form["notes"].ToString(),
+                List = list,
+                Priority = priority,
+                ProjectId = projectId,
+                DoNotAutoReschedule = form["doNotAutoReschedule"] == "true",
+            },
+            new HashSet<string>
+            {
+                "title",
+                "notes",
+                "list",
+                "priority",
+                "projectId",
+                "doNotAutoReschedule",
+            });
+    }
+
+    private Task<WebWriteResult> DeferAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Words.TryDate(form["deferUntil"], out var until)
+            ? Writes.DeferAsync(key, Id, until)
+            : Invalid("Give the date as yyyy-mm-dd.");
+    }
+
+    private Task<WebWriteResult> RescheduleAsync(
+        IFormCollection form,
+        string key)
+    {
+        if (!Words.TryDate(form["date"], out var date) || date is null)
+        {
+            return Invalid("Give the due date as yyyy-mm-dd.");
+        }
+
+        return Words.TryTime(form["time"], out var time)
+            ? Writes.RescheduleAsync(key, Id, date.Value, time)
+            : Invalid("Give the time as hh:mm.");
+    }
+
+    private Task<WebWriteResult> ClearDueAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Writes.ClearDueAsync(key, Id);
+    }
+
+    private Task<WebWriteResult> RepeatAsync(
+        IFormCollection form,
+        string key)
+    {
+        if (!Words.TryEnum<RecurrenceMode>(form["mode"], out var mode)
+            || !Words.TryDate(form["start"], out var start))
+        {
+            return Invalid("Choose a mode, and give the start as a date.");
+        }
+
+        return Writes.RepeatAsync(
+            key,
+            Id,
+            form["rule"].ToString().Trim(),
+            mode,
+            start);
+    }
+
+    private Task<WebWriteResult> StopRepeatingAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Writes.StopRepeatingAsync(key, Id);
+    }
+
+    private Task<WebWriteResult> AddReminderAsync(
+        IFormCollection form,
+        string key)
+    {
+        return int.TryParse(
+                form["offsetMinutes"],
+                System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var minutes)
+            ? Writes.AddReminderAsync(key, Id, minutes)
+            : Invalid("Give the minutes as a whole number.");
+    }
+
+    private Task<WebWriteResult> AddContextAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Words.TryGuid(form["contextId"], out var contextId)
+            && contextId is { } id
+            ? Writes.AddContextAsync(key, Id, id)
+            : Invalid("Choose a context.");
+    }
+
+    private Task<WebWriteResult> DeleteAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Writes.DeleteAsync(key, Id);
+    }
+}

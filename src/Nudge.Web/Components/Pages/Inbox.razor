@@ -1,0 +1,114 @@
+@page "/"
+@page "/inbox"
+@inject UiQueries Queries
+@inject WebWrites Writes
+
+<PageTitle>Inbox - Nudge</PageTitle>
+
+<h1>Inbox</h1>
+
+<ActionForm Name="capture" Action="CaptureAsync" Then="/inbox" Class="capture">
+    <label>
+        Capture
+        <input type="text"
+               name="title"
+               required
+               autofocus
+               autocomplete="off" />
+    </label>
+    <button type="submit">Add to inbox</button>
+</ActionForm>
+
+@if (_items.Count == 0)
+{
+    <p class="empty">The inbox is empty.</p>
+}
+else
+{
+    <ul class="items">
+        @foreach (var item in _items)
+        {
+            <ItemRow Item="item">
+                <ActionForm Name="@($"process-{item.Id:N}")"
+                            Action="(form, key) => ProcessAsync(item, form, key)"
+                            Then="/inbox"
+                            Class="process">
+                    <select name="list" aria-label="List">
+                        @foreach (var list in Lists)
+                        {
+                            <option value="@list"
+                                    selected="@(list == ItemState.NextAction)">
+                                @Words.List(list)
+                            </option>
+                        }
+                    </select>
+                    <select name="projectId" aria-label="Project">
+                        <option value="">No project</option>
+                        @foreach (var project in _projects)
+                        {
+                            <option value="@project.Id">@project.Name</option>
+                        }
+                    </select>
+                    <label>
+                        Defer until
+                        <input type="date" name="deferUntil" />
+                    </label>
+                    <button type="submit">Process</button>
+                </ActionForm>
+            </ItemRow>
+        }
+    </ul>
+}
+
+@code {
+    private static readonly ItemState[] Lists =
+    [
+        ItemState.NextAction,
+        ItemState.WaitingFor,
+        ItemState.Someday,
+        ItemState.Inbox,
+    ];
+
+    private IReadOnlyList<Item> _items = [];
+    private IReadOnlyList<Project> _projects = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = await Queries.ListAsync(ItemState.Inbox);
+        _projects = await Queries.ProjectsAsync();
+    }
+
+    private Task<WebWriteResult> CaptureAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Writes.CaptureAsync(key, form["title"].ToString().Trim());
+    }
+
+    /// <summary>Moves an item out of the inbox: onto a list, into a
+    /// project, and put off until a date, all as one change.</summary>
+    private Task<WebWriteResult> ProcessAsync(
+        Item item,
+        IFormCollection form,
+        string key)
+    {
+        if (!Words.TryEnum<ItemState>(form["list"], out var list)
+            || !Words.TryGuid(form["projectId"], out var projectId)
+            || !Words.TryDate(form["deferUntil"], out var deferUntil))
+        {
+            return Task.FromResult(
+                WebWriteResult.Invalid("Choose a list, and a valid date."));
+        }
+
+        return Writes.EditAsync(
+            key,
+            item.Id,
+            new Nudge.Web.Api.ItemPatch
+            {
+                List = list,
+                ProjectId = projectId,
+                DeferUntil = deferUntil,
+            },
+            new HashSet<string> { "list", "projectId", "deferUntil" });
+    }
+}

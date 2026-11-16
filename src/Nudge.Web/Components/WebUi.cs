@@ -83,6 +83,9 @@ public static class WebUi
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             });
         services.AddRazorComponents();
+        services.AddHttpContextAccessor();
+        services.AddScoped<UiQueries>();
+        services.AddScoped<WebWrites>();
         services.AddOwnerAuthentication(signIn);
         return services;
     }

@@ -1,0 +1,41 @@
+@inject UiQueries Queries
+
+@* What is set on an item, in a few words. *@
+<span class="facts">
+    @if (Item.DueDate is { } due)
+    {
+        <span class="@(due < Queries.Today() ? "fact overdue" : "fact")">
+            due @Words.Date(due) @Words.Time(Item.DueTime)
+        </span>
+    }
+    @if (Queries.IsDeferred(Item))
+    {
+        <span class="fact">
+            deferred until @Words.Date(Item.DeferUntil)
+        </span>
+    }
+    @if (Item.Recurrence is { } recurrence)
+    {
+        <span class="fact">
+            repeats @recurrence.Rule.ToString()
+            (@Words.Mode(recurrence.Mode))
+        </span>
+    }
+    @if (Item.Project is { } project)
+    {
+        <a class="fact" href="@($"/projects/{project.Id}")">@project.Name</a>
+    }
+    @foreach (var context in Item.Contexts.OrderBy(c => c.Name))
+    {
+        <span class="fact context">@context.Name</span>
+    }
+    @if (Item.Priority != Nudge.Core.Priority.None)
+    {
+        <span class="fact">@Words.Priority(Item.Priority)</span>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public Nudge.Core.Item Item { get; set; } = default!;
+}

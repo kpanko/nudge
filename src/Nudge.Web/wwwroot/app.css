@@ -31,3 +31,58 @@ main {
     padding: 1rem;
     margin: 0 auto;
 }
+
+.views {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.views a.active {
+    font-weight: 600;
+}
+
+.items,
+.projects {
+    list-style: none;
+    padding: 0;
+}
+
+.item {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #8882;
+}
+
+.inline,
+.inline label {
+    display: inline;
+}
+
+.fields label {
+    display: block;
+    margin-bottom: 0.4rem;
+}
+
+.facts .fact {
+    margin-left: 0.5rem;
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.overdue,
+.warn,
+.error {
+    color: #c33;
+}
+
+.notice {
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
+    border: 1px solid #8886;
+    border-radius: 0.25rem;
+}
+
+.hint,
+.empty {
+    opacity: 0.75;
+}
