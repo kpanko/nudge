@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -322,16 +323,61 @@ public sealed class SignInTests : IDisposable
         Assert.True(options.UsePkce);
         Assert.True(options.RequireHttpsMetadata);
         Assert.False(options.SaveTokens);
+        Assert.Equal(
+            ["https://accounts.google.com", "accounts.google.com"],
+            options.TokenValidationParameters.ValidIssuers);
     }
 
+    // Without a keys folder, the keys are this app's alone: kept in
+    // memory, not in the default folder in the user's profile, which
+    // a second app would share.
     [Fact]
-    public void DataProtection_IsNotKeptAnywhere_WithoutAKeysPath()
+    public async Task DataProtection_WithoutAKeysPath_KeepsKeysInMemoryOnly()
     {
         var configuration = _host.Services
             .GetRequiredService<IConfiguration>();
-
         Assert.Null(configuration[WebUi.KeysPathSetting]);
-        Assert.IsType<EphemeralDataProtectionProvider>(
-            _host.Services.GetRequiredService<IDataProtectionProvider>());
+        await _host.SignInAsync();
+
+        var repository = _host.Services
+            .GetRequiredService<IOptions<KeyManagementOptions>>()
+            .Value
+            .XmlRepository;
+        Assert.NotNull(repository);
+        Assert.IsNotType<FileSystemXmlRepository>(repository);
+        Assert.NotEmpty(repository.GetAllElements());
+
+        using var other = new WebUiHost();
+        other.Cookies[Cookie] = _host.Cookies[Cookie];
+        var reply = await other.GetAsync("/");
+        Assert.Equal(HttpStatusCode.Redirect, reply.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _host.GetAsync("/")).StatusCode);
+    }
+
+    public static IEnumerable<object[]> Issuers =>
+        new (string Issuer, bool Accepted)[]
+        {
+            ("https://accounts.google.com", true),
+            ("accounts.google.com", true),
+            ("https://evil.example.test", false),
+            ("http://accounts.google.com", false),
+            ("accounts.google.com.evil.example.test", false),
+        }.Select(r => new object[] { r.Issuer, r.Accepted });
+
+    // Google gives its issuer in either of two forms; nothing else
+    // passes. (The fake's own issuer is accepted too, as the issuer
+    // of the configuration the test puts in Google's place.)
+    [Theory]
+    [MemberData(nameof(Issuers))]
+    public async Task Issuer_IsOneOfGooglesTwoForms(
+        string issuer,
+        bool accepted)
+    {
+        var callback = await _host.SignInAsync(issuer: issuer);
+
+        Assert.Equal(
+            accepted ? "/" : OwnerAuthentication.AccessDeniedPath,
+            callback.Headers.Location!.ToString());
+        Assert.Equal(accepted, _host.Cookies.ContainsKey(Cookie));
     }
 }
