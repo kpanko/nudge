@@ -305,6 +305,23 @@ internal sealed partial class WebUiHost : IDisposable
             : null;
     }
 
+    /// <summary>The method and path the newest idempotency record
+    /// was kept under; null if there is none.</summary>
+    public (string Method, string Path)? LastRecord()
+    {
+        using var connection = new SqliteConnection(
+            $"Data Source={Factory.DatabasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT Method, Path FROM IdempotencyRecords"
+            + " ORDER BY rowid DESC LIMIT 1;";
+        using var reader = command.ExecuteReader();
+        return reader.Read()
+            ? (reader.GetString(0), reader.GetString(1))
+            : null;
+    }
+
     /// <summary>How many rows a table has.</summary>
     public long Count(string table)
     {

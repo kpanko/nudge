@@ -1188,9 +1188,9 @@ under the application name `Nudge`; when it is unset (tests,
 `dotnet run`) the keys live in an in-memory key repository, so the
 default folder in the user's profile (or `~/.aspnet` in a
 container) is neither read nor written. Problem-details status
-pages now apply only to the API side (`/api`, `/healthz`, `/openapi`); a path of the web UI
-that matches nothing needs the owner signed in, then shows the
-`/not-found` page.
+pages now apply only to the API side (`/api`, `/healthz`,
+`/openapi`); a path of the web UI that matches nothing needs the
+owner signed in, then shows the `/not-found` page.
 
 **Alternatives considered:** Keys in the database (they would fall
 under the change log's rules). A catch-all fallback route for the
@@ -1227,7 +1227,15 @@ be, with the source `web`, the API endpoint's description, method
 and path, and a key from the form. Each form carries a key made when
 the page is rendered (`web-` and a GUID), so a form sent twice is
 carried out once; the same key with other values is refused on the
-page. Pages are rendered and forms handled by Blazor's static
+page. The key's fingerprint is taken from the posted form itself
+(the page's path and every field but the antiforgery token), so a
+step after authorization and antiforgery (`UseUiReplay`) can
+recognise a form sent again with a key already carried out and
+answer it as the first time, even when that write took the form off
+the page (Blazor would otherwise refuse a post for a form it no
+longer renders). It only reads the record. Where to go after a
+write is a hidden field of the form, always reduced to a path on
+this site. Pages are rendered and forms handled by Blazor's static
 server rendering: a form posts back to its page with the
 antiforgery token, the write runs, and the browser is sent back to
 the page with `?change=<number>`, where a notice offers to undo it.

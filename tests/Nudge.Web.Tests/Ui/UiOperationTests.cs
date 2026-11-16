@@ -1,5 +1,12 @@
+using System.Globalization;
 using System.Net;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Template;
+using Microsoft.Extensions.DependencyInjection;
+using Nudge.Web.Api;
+using Nudge.Web.Components;
 
 namespace Nudge.Web.Tests.Ui;
 
@@ -74,7 +81,42 @@ public sealed class UiOperationTests : IAsyncLifetime
         Assert.Equal(id, last.Id);
         Assert.Equal("web", last.Source);
         Assert.Equal(description, last.Description);
+        AssertLikeTheApi(description);
         return id;
+    }
+
+    /// <summary>
+    /// The newest web write was kept under the method and path of an
+    /// API write endpoint whose description is the change's, so the
+    /// web UI's literals cannot drift from the API's definitions.
+    /// </summary>
+    private void AssertLikeTheApi(string description)
+    {
+        var (method, path) = _host.LastRecord()!.Value;
+        var matches = _host.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<WriteEndpoint>() is not null)
+            .Where(
+                e => e.Metadata
+                    .GetMetadata<HttpMethodMetadata>()!
+                    .HttpMethods
+                    .Contains(method))
+            .Where(
+                e => new TemplateMatcher(
+                        TemplateParser.Parse(
+                            Regex.Replace(
+                                e.RoutePattern.RawText!,
+                                ":[a-z]+}",
+                                "}")),
+                        new RouteValueDictionary())
+                    .TryMatch(path, new RouteValueDictionary()))
+            .ToList();
+        var endpoint = Assert.Single(matches);
+        Assert.Equal(
+            description,
+            endpoint.Metadata.GetMetadata<WriteEndpoint>()!.Description);
     }
 
     /// <summary>Undoes a change with the notice on the page the
@@ -371,6 +413,135 @@ public sealed class UiOperationTests : IAsyncLifetime
         Assert.Single(
             (await UiPage.OpenAsync(_host, "/inbox")).Texts("li.item > a"),
             "Buy stamps");
+    }
+
+    public static IEnumerable<object[]> FormsThatGoAway =>
+        new[] { "process", "complete", "delete" }
+            .Select(form => new object[] { form });
+
+    /// <summary>The page and form for a write after which the form
+    /// is no longer shown.</summary>
+    private async Task<(UiPage Page, string Form)> FormThatGoesAwayAsync(
+        string kind)
+    {
+        var id = await InboxItemAsync();
+        return kind switch
+        {
+            "process" => (await UiPage.OpenAsync(_host, "/inbox"), $"process-{id:N}"),
+            "complete" => (await UiPage.OpenAsync(_host, "/inbox"), $"complete-{id:N}"),
+            _ => (await UiPage.OpenAsync(_host, $"/items/{id}"), "delete"),
+        };
+    }
+
+    // The first write takes the form off the page (the item leaves
+    // the inbox, or is gone); sending it again is still answered as
+    // the first time, with the same change to undo.
+    [Theory]
+    [MemberData(nameof(FormsThatGoAway))]
+    public async Task SameFormSentTwice_AfterItsFormIsGone_IsAnsweredTheSame(
+        string kind)
+    {
+        var (page, form) = await FormThatGoesAwayAsync(kind);
+        var fields = page.Fields(form);
+
+        var first = await page.SendAsync(fields);
+        var changes = _host.Count("Changes");
+        var again = await page.SendAsync(fields);
+
+        Assert.Equal(HttpStatusCode.Redirect, again.StatusCode);
+        Assert.Equal(PathOf(first), PathOf(again));
+        Assert.Equal(changes, _host.Count("Changes"));
+        var notice = await UiPage.OpenAsync(_host, PathOf(again));
+        Assert.True(notice.HasForm("undo-notice"));
+    }
+
+    // A key that was never used gets no answer it has not earned.
+    [Theory]
+    [MemberData(nameof(FormsThatGoAway))]
+    public async Task NewKey_ForAFormThatIsGone_IsRefused(string kind)
+    {
+        var (page, form) = await FormThatGoesAwayAsync(kind);
+        var fields = page.Fields(form);
+        await page.SendAsync(fields);
+        var changes = _host.Count("Changes");
+
+        var reply = await page.SendAsync(
+            fields,
+            ("key", Guid.NewGuid().ToString("N")));
+
+        Assert.NotEqual(HttpStatusCode.Redirect, reply.StatusCode);
+        Assert.Equal(changes, _host.Count("Changes"));
+    }
+
+    // A replay needs the antiforgery token like any form.
+    [Fact]
+    public async Task SameFormSentTwice_WithoutTheToken_IsRefused()
+    {
+        var (page, form) = await FormThatGoesAwayAsync("process");
+        var fields = page.Fields(form);
+        await page.SendAsync(fields);
+
+        var reply = await page.SendAsync(
+            fields,
+            ("__RequestVerificationToken", null));
+
+        Assert.Equal(HttpStatusCode.BadRequest, reply.StatusCode);
+    }
+
+    // Where to go after a write comes from the form, so a changed one
+    // is never followed off the site; a replay with it is no replay.
+    [Fact]
+    public async Task Replay_WithAnotherTarget_IsNotFollowed()
+    {
+        var (page, form) = await FormThatGoesAwayAsync("process");
+        var fields = page.Fields(form);
+        await page.SendAsync(fields);
+
+        var reply = await page.SendAsync(
+            fields,
+            ("then", "//evil.example.test/inbox"));
+
+        Assert.NotEqual(HttpStatusCode.Redirect, reply.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/inbox", 5L, "/inbox?change=5")]
+    [InlineData("/items/a?change=3", 4L, "/items/a?change=4")]
+    [InlineData("//evil.example.test/inbox", 5L, "/?change=5")]
+    [InlineData("/\evil.example.test", null, "/")]
+    [InlineData("https://evil.example.test/", null, "/")]
+    [InlineData(null, null, "/")]
+    public void Target_IsAlwaysOnThisSite(
+        string? then,
+        long? changeId,
+        string expected)
+    {
+        Assert.Equal(expected, WebWrites.Target(then, changeId));
+    }
+
+    // The indent of a project in the tree is CSS, which takes a
+    // point, whatever the culture.
+    [Fact]
+    public async Task ProjectTree_IndentIsWrittenWithAPoint()
+    {
+        var house = await _host.CreateAsync("/api/projects", "House");
+        await _host.ApiAsync(
+            "POST",
+            "/api/projects",
+            $$"""{"name":"Kitchen","parentId":"{{house}}"}""");
+        var culture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+            var page = await UiPage.OpenAsync(_host, "/projects");
+
+            Assert.Contains("margin-left: 1.5rem", page.Html, StringComparison.Ordinal);
+            Assert.DoesNotContain("1,5rem", page.Html, StringComparison.Ordinal);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 
     [Fact]

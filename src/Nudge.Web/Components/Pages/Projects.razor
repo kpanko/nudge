@@ -15,7 +15,7 @@ else
     <ul class="projects">
         @foreach (var line in _lines)
         {
-            <li style="@($"margin-left: {line.Depth * 1.5}rem")">
+            <li style="@Indent(line)">
                 <a href="@($"/projects/{line.Project.Id}")">@line.Project.Name</a>
                 <span class="facts">
                     <span class="fact">@line.OpenItems open</span>
@@ -46,6 +46,15 @@ else
 
 @code {
     private IReadOnlyList<ProjectLine> _lines = [];
+
+    /// <summary>In the invariant culture: 1.5rem, never 1,5rem.
+    /// </summary>
+    private static string Indent(ProjectLine line)
+    {
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"margin-left: {line.Depth * 1.5}rem");
+    }
 
     protected override async Task OnInitializedAsync()
     {
