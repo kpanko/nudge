@@ -1281,3 +1281,40 @@ stays listed until the item is completed or rescheduled or the
 reminder removed. M5 must replace the definition, not add to it.
 
 ---
+
+## 2026-11-16 The browser smoke test runs in CI, over HTTPS, with a fake Google
+
+**Context:** M3 asks for a Playwright smoke test in CI. Google
+sign-in cannot be used in a test, the app's cookies are Secure only,
+and `dotnet test` must stay green on a machine without a browser.
+
+**Decision:** A project of its own, `tests/Nudge.Web.UiTests`, with
+`Microsoft.Playwright` and xunit. It serves the real app with
+`WebApplicationFactory.UseKestrel` on a free port of `localhost`,
+over HTTPS with a self-signed certificate made for the run (the
+browser is told to accept it), on a temporary database. Sign-in goes
+through the app's real OpenID Connect handler, pointed at the fake
+Google the web tests use (its file is linked, not copied): the
+fake's sign-in page is served by the test on the app's host, through
+a startup filter in the test project, and posts a code straight
+back. One test walks the owner's day in Chromium, by clicking, and
+checks that no step was a full page load. It runs only with
+`NUDGE_PLAYWRIGHT=1` and is reported as skipped otherwise. CI
+installs Chromium with the built project's `playwright.ps1` after
+the build, sets the variable for the test step, and uploads a trace,
+a screenshot, the console errors and the app's warnings when it
+fails.
+
+**Alternatives considered:** Plain HTTP (the app's antiforgery,
+with its cookie set to Secure only, refuses every request that is
+not HTTPS). A Playwright route standing in for Google (routes do not
+see a request reached by a redirect). The smoke test inside
+`Nudge.Web.Tests` (every run of the web tests would need the
+Playwright package and its browser install).
+
+**Consequences:** The test needs a browser download in CI (about
+200 MB with its dependencies). Running the app with `dotnet run` on
+the `http` launch profile shows a 500 on every page for the same
+antiforgery reason; use the `https` profile.
+
+---
