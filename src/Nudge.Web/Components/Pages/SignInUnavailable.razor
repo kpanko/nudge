@@ -1,0 +1,24 @@
+@page "/sign-in-unavailable"
+@attribute [AllowAnonymous]
+
+<PageTitle>Sign-in is not configured - Nudge</PageTitle>
+
+<h1>Sign-in is not configured</h1>
+<p>
+    Nobody can sign in until the Google client and the owner's
+    account are set in the deployment's configuration.
+</p>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (HttpContext is not null)
+        {
+            HttpContext.Response.StatusCode =
+                StatusCodes.Status503ServiceUnavailable;
+        }
+    }
+}

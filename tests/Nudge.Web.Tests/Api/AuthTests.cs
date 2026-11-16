@@ -193,8 +193,10 @@ public sealed class AuthTests : IDisposable
             changes.AsArray().Select(c => c!["source"]!.GetValue<string>()));
     }
 
-    /// <summary>Every endpoint the app maps, with a path that fits
-    /// its route.</summary>
+    /// <summary>Every endpoint the app maps on the API side, with a
+    /// path that fits its route. The web UI's endpoints are held to
+    /// the owner's sign-in instead, in <c>UiEndpointTests</c>.
+    /// </summary>
     private List<(string Name, string Method, string Path, bool Anonymous)>
         Endpoints()
     {
@@ -202,6 +204,7 @@ public sealed class AuthTests : IDisposable
             .GetRequiredService<EndpointDataSource>()
             .Endpoints
             .OfType<RouteEndpoint>()
+            .Where(EndpointSides.IsApiSide)
             .SelectMany(
                 endpoint => (endpoint.Metadata
                         .GetMetadata<HttpMethodMetadata>()
@@ -316,8 +319,6 @@ public sealed class AuthTests : IDisposable
             ("POST", "/api/nothing-here", false),
             ("GET", "/api", false),
             ("GET", "/api/", false),
-            ("GET", "/nothing-here", false),
-            ("GET", "/", false),
             ("GET", "/openapi/v2.json", false),
             ("GET", "/openapi/v1.yaml", false),
             ("GET", "/openapi", false),

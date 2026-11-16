@@ -4,6 +4,11 @@ primary_region = "ord"
 [build]
   dockerfile = "Dockerfile"
 
+[env]
+  # Keys that encrypt the web UI's sign-in cookie, kept on the
+  # volume so that a deploy does not sign the owner out.
+  Nudge__DataProtection__KeysPath = "/data/keys"
+
 [mounts]
   source = "nudge_data"
   destination = "/data"

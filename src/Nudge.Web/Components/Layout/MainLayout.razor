@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+
+<header class="top">
+    <a class="brand" href="/">Nudge</a>
+    @if (SignedIn)
+    {
+        <form class="sign-out"
+              method="post"
+              action="@OwnerAuthentication.SignOutPath">
+            <AntiforgeryToken />
+            <button type="submit">Sign out</button>
+        </form>
+    }
+</header>
+
+<main>
+    @Body
+</main>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private bool SignedIn =>
+        HttpContext is not null
+        && OwnerAuthentication.IsOwner(HttpContext.User);
+}

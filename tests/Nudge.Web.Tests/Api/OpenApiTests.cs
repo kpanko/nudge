@@ -179,6 +179,7 @@ public sealed class OpenApiTests : IDisposable
             .GetRequiredService<EndpointDataSource>()
             .Endpoints
             .OfType<RouteEndpoint>()
+            .Where(EndpointSides.IsApiSide)
             .ToList();
         var described = 0;
         foreach (var endpoint in endpoints)
