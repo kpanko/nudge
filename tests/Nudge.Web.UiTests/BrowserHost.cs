@@ -1,9 +1,10 @@
 using System.Net;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Builder;
@@ -19,8 +20,8 @@ using Nudge.Web.Tests.Ui;
 namespace Nudge.Web.UiTests;
 
 /// <summary>
-/// The real app served by Kestrel on a free port of
-/// <c>localhost</c>, on a database of its own with a little invented
+/// The real app served by Kestrel on a free port of the loopback
+/// address, on a database of its own with a little invented
 /// data, signed in to through <see cref="FakeGoogle"/>. The fake
 /// Google's sign-in page is served by the test, on the app's host
 /// at <see cref="SignInPagePath"/> (a branch added by a startup
@@ -41,14 +42,15 @@ internal sealed class BrowserHost : IAsyncDisposable
     private readonly WebApplicationFactory<Program> _app;
     private readonly X509Certificate2 _certificate = Certificate();
 
-    private BrowserHost(int port)
+    private BrowserHost()
     {
-        BaseAddress = $"https://localhost:{port}";
         Factory = new NudgeWebFactory();
         _app = Factory.WithWebHostBuilder(
             builder =>
             {
-                builder.UseSetting(OwnerSignIn.ClientIdSetting, FakeGoogle.ClientId);
+                builder.UseSetting(
+                    OwnerSignIn.ClientIdSetting,
+                    FakeGoogle.ClientId);
                 builder.UseSetting(
                     OwnerSignIn.ClientSecretSetting,
                     "not-a-real-secret");
@@ -70,9 +72,13 @@ internal sealed class BrowserHost : IAsyncDisposable
                             new SignInPage(this));
                     });
             });
+        // Port 0: the system picks a free port as Kestrel binds, and
+        // the address is read back once it has started, so no other
+        // process can take the port in between.
         _app.UseKestrel(
-            options => options.ListenLocalhost(
-                port,
+            options => options.Listen(
+                IPAddress.Loopback,
+                0,
                 listen => listen.UseHttps(_certificate)));
     }
 
@@ -81,7 +87,7 @@ internal sealed class BrowserHost : IAsyncDisposable
     /// browser is told to accept. (Over plain HTTP the app's
     /// antiforgery, set to Secure cookies only, refuses to work.)
     /// </summary>
-    public string BaseAddress { get; }
+    public string BaseAddress { get; private set; } = "";
 
     public FakeGoogle Google { get; } = new();
 
@@ -92,8 +98,15 @@ internal sealed class BrowserHost : IAsyncDisposable
 
     public static async Task<BrowserHost> StartAsync()
     {
-        var host = new BrowserHost(FreePort());
+        var host = new BrowserHost();
         host._app.StartServer();
+        host.BaseAddress = host._app.Services
+            .GetRequiredService<IServer>()
+            .Features
+            .Get<IServerAddressesFeature>()!
+            .Addresses
+            .Single()
+            .TrimEnd('/');
         await host.SeedAsync();
         return host;
     }
@@ -160,6 +173,7 @@ internal sealed class BrowserHost : IAsyncDisposable
             RSASignaturePadding.Pkcs1);
         var names = new SubjectAlternativeNameBuilder();
         names.AddDnsName("localhost");
+        names.AddIpAddress(IPAddress.Loopback);
         request.CertificateExtensions.Add(names.Build());
         request.CertificateExtensions.Add(
             new X509EnhancedKeyUsageExtension(
@@ -174,13 +188,6 @@ internal sealed class BrowserHost : IAsyncDisposable
         return X509CertificateLoader.LoadPkcs12(
             made.Export(X509ContentType.Pkcs12),
             null);
-    }
-
-    private static int FreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
     /// <summary>Invented items for the lists only looked over.
