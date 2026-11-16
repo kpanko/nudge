@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Android 13 and later: notifications need a runtime grant. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <!-- Exact alarms. USE_EXACT_ALARM (Android 13+) is granted at
+       install and cannot be revoked by the user; Google Play allows it
+       only for alarm and calendar apps, which does not matter for a
+       sideloaded app. Android 12 and 12L do not know it, so they get
+       SCHEDULE_EXACT_ALARM, which they grant by default but the user
+       can revoke. Capping that one at API 32 keeps it from showing up
+       as a revocable permission on newer phones. -->
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+  <uses-permission
+      android:name="android.permission.SCHEDULE_EXACT_ALARM"
+      android:maxSdkVersion="32" />
+
+  <uses-permission
+      android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+  <application
+      android:name=".SpikeApplication"
+      android:label="Nudge alarm spike"
+      android:icon="@drawable/ic_launcher"
+      android:allowBackup="false"
+      android:supportsRtl="true"
+      android:theme="@style/SpikeTheme">
+
+    <activity
+        android:name=".MainActivity"
+        android:exported="true"
+        android:launchMode="singleTop"
+        android:configChanges="screenSize|orientation|uiMode|screenLayout|smallestScreenSize|density">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+
+    <!-- The alarm itself and the notification's Complete, Snooze and
+         swipe intents. Not exported: only this app's own pending
+         intents reach it. -->
+    <receiver
+        android:name=".AlarmReceiver"
+        android:exported="false" />
+
+    <!-- Re-registers the alarms after a reboot or an update.
+         QUICKBOOT_POWERON is what some manufacturers send instead of
+         BOOT_COMPLETED after a fast reboot. It stays exported so that
+         no manufacturer's boot broadcast can be missed, which is what
+         the phone test measures; since other apps can then send it
+         anything, the receiver ignores every action but these
+         three. -->
+    <receiver
+        android:name=".BootReceiver"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action
+            android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action
+            android:name="android.intent.action.QUICKBOOT_POWERON" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>
