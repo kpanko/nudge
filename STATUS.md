@@ -1,7 +1,7 @@
 # Status
 
-**Last updated:** 2026-11-15
-**Current milestone:** M2 Alarm spike
+**Last updated:** 2026-11-16
+**Current milestone:** M2 Alarm spike; M3 Web UI in review
 
 ## In Progress
 - M1. All six tasks are on main: PR #6 was merged on 2026-11-15
@@ -31,14 +31,28 @@
   the phone. Every M2 acceptance criterion is still open until
   then. See "Recently Completed" and "Key Context" for what the
   spike is and what was checked.
-- M3, the web UI: started on 2026-11-15, at the owner's request,
-  in a separate session working in its own worktree on branches
-  cut from main (the first is `claude/m3-web-ui-6a4309`). It was
-  still running when this session ended, building the first of a
-  few pull requests (UI shell and auth). It is to open pull
-  requests without merging them and to write its own state into
-  this file when it finishes; until then, look at the open pull
-  requests on GitHub for where it stands.
+- M3, the web UI: built on 2026-11-15 and 2026-11-16 as three
+  stacked pull requests, none merged. Merge them in this order:
+  1. #9, UI shell and Google sign-in, base `main`, branch
+     `m3-ui-shell-auth`, tip ca92d55.
+     https://github.com/kpanko/nudge/pull/9
+  2. #10, views and item operations, base `m3-ui-shell-auth`,
+     branch `m3-ui-views`, tip 6f4e30b. After #9 is merged, change
+     #10's base to `main` (GitHub does it only when #9's branch is
+     deleted, which this repository does not do, so check).
+     https://github.com/kpanko/nudge/pull/10
+  3. #11, Playwright smoke test in CI, base `m3-ui-views`, branch
+     `m3-ui-playwright`, tip 68cdc1b. After #10 is merged, change
+     its base to `main`.
+     https://github.com/kpanko/nudge/pull/11
+  CI passes at all three tips. Each merge to main starts the gated
+  deploy job. In MILESTONES.md (on the branches) M3 is
+  `in-progress` with every task and every criterion ticked except
+  "Sign in with Google; any other account is rejected", which waits
+  for a real sign-in (see "Must be done by hand"). Choices 69 to 102
+  under "Blockers / Open Questions" and the DECISIONS.md entries of
+  2026-11-16 explain the design; each pull request description has
+  what was checked and its review comments.
 - Before the Kotlin spike: on 2026-11-15
   the owner decided the Android app will be Kotlin, offline-first
   (see DECISIONS.md under that date), so the spike was
@@ -102,6 +116,31 @@ approve it.
   stops one at once. Names are never reused, revoked ones included.
 - If only #5 is deployed, before #6, the API is open to anyone who
   can reach the app. Do not put real data in before #6 is deployed.
+- M3 sign-in. Until these are done the web UI stays locked ("Sign-in
+  is not configured") and the API is unaffected:
+  1. In Google Cloud Console, create an OAuth client of type "Web
+     application" with the authorized redirect URI
+     `https://nudge-gtd.fly.dev/signin-google`.
+  2. Set the secrets (the values are the owner's; nothing is
+     committed):
+
+     ```bash
+     fly secrets set --app nudge-gtd \
+       Nudge__Google__ClientId=... \
+       Nudge__Google__ClientSecret=... \
+       Nudge__Owner__Email=...
+     ```
+
+     Optionally also `Nudge__Owner__Subject`, the account's Google
+     id, to pin it further.
+  3. Nothing to set for the Data Protection keys:
+     `Nudge__DataProtection__KeysPath = "/data/keys"` is in the
+     `[env]` section of `fly.toml` in #9.
+  4. Merge #9, #10 and #11 in order and approve the deploys.
+  5. Sign in once at https://nudge-gtd.fly.dev/ with the owner's
+     account, try another Google account and see it refused, then
+     tick "Sign in with Google; any other account is rejected" in
+     MILESTONES.md and mark M3 `done`.
 
 ## Recently Completed
 - Kotlin alarm spike (PR #8, open), the first task of M2.
@@ -183,12 +222,13 @@ approve it.
    APK and run the checklist on the phone, filling in the results
    table in the spike's README. When the three open M2 criteria
    pass, tick them and the second task, and mark M2 `done`.
-5. M3, the web UI: review the pull requests its session opens
-   (see "In Progress"). Earlier on 2026-11-15 it had been left
-   unstarted on purpose: it builds on the M1 design in
-   #2 to #6, which the owner has not reviewed yet, and its Google
-   sign-in cannot be checked end to end without an OAuth client the
-   owner creates. Both cautions still hold for what it builds.
+5. M3, the web UI: review and merge #9, #10 and #11 in that order
+   (see "In Progress"), approving each deploy. Its components are
+   the web UI's own; there is no shared component library. It
+   builds on the M1 design in #2 to #6, which the owner has not
+   reviewed yet, and it changed M1 code: `WriteRunner` is split
+   into a core and the API's adapter (#10). Then do the M3 steps
+   under "Must be done by hand" and tick the sign-in criterion.
 
 ## Blockers / Open Questions
 - No blockers.
@@ -493,10 +533,109 @@ approve it.
         `fired-early`, not shown, and the alarm is registered
         again. CodeRabbit suggested only ignoring it. A second fire
         for an alarm already showing re-posts its notification.
+  - In the web UI (PRs #9, #10 and #11), on 2026-11-15 and
+    2026-11-16. The pull request descriptions number these 67 to
+    100; here they follow on from the spike's 67 and 68. The
+    DECISIONS.md entries of 2026-11-16 explain them.
+    69. Static server-rendered Blazor; changes recorded as `web`.
+    70. Owner matched by verified email, ignoring case; optional `sub`
+        pin; re-checked on every request.
+    71. Missing sign-in settings: the app starts, the UI is locked, a
+        warning is logged.
+    72. No development sign-in; tests use a fake Google through the
+        real OpenID Connect handler.
+    73. The cookie is never accepted by the API; the UI has a separate
+        `Owner` policy.
+    74. `X-Forwarded-Proto` trusted from any sender (Fly's proxy only).
+    75. Data Protection keys as files in `/data/keys`; in memory when
+        unset.
+    76. Problem-JSON status pages only on the API side; the UI has a
+        not-found page, done by middleware.
+    77. Guard tests split into an API side and a UI side.
+    78. A non-GET request to an unknown UI path gets 401 from the
+        fallback policy.
+    79. Signing out only deletes the cookie; no server-side session
+        list.
+    80. `WriteRunner` split into a core and the HTTP adapter; the
+        handlers are internal.
+    81. Each web write runs in its own DI scope; page reads are
+        untracked.
+    82. Plain SSR forms, a `@formname` each, reading the posted fields.
+    83. Form key `web-<guid>`, fingerprinted from the posted form; the
+        same key with other values is refused.
+    84. After a write, a redirect with `?change=N` and an Undo notice.
+    85. `/` is the inbox.
+    86. Processing is one edit: list, project and defer date.
+    87. `/next`: an item under each of its contexts, "No context" last.
+    88. "Projects without a next action" counts the project's own items
+        only.
+    89. The weekly review is read-only; "next seven days" means today
+        and the six after it.
+    90. Missed reminders: a past `FireTime` on an open item,
+        provisional until M5.
+    91. The UI adds reminders only as minutes from the due time.
+    92. `/changes` shows the latest 50, each with Undo.
+    93. Test sign-in through the fake Google, not a test-only scheme.
+    94. AngleSharp 1.9.1 in the tests (1.1.2 to 1.4.0 fail on an
+        advisory).
+    95. M3 marked `in-progress`; operations and views ticked.
+    96. The smoke test has a project of its own; shared test files are
+        linked.
+    97. The smoke test runs over HTTPS with a certificate made for the
+        run (plain HTTP gets an antiforgery 500).
+    98. The fake Google's sign-in page is served by a test startup
+        filter.
+    99. Browser tests are skipped unless `NUDGE_PLAYWRIGHT=1`.
+    100. Microsoft.Playwright 1.63.0.
+    101. `FakeGoogle` has its own `ClientId`.
+    102. The sign-in cookie is checked against the configuration as it
+         is at each request, and sign-in must also have been configured
+         at startup.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
 - What was and was not checked:
+  - For the web UI (PRs #9, #10 and #11), on 2026-11-16:
+    - `dotnet build` (warnings are errors) and `dotnet test` pass:
+      623 tests on #9's branch (97 core, 526 web), 676 on #10's
+      (97 core, 579 web), 677 on #11's with the browser test on
+      (97 core, 579 web, 1 browser).
+    - Through the real OpenID Connect handler, against a fake
+      Google: the owner is accepted (address case ignored); another
+      account, an unverified or missing address, a token for
+      another client, another issuer, and a callback with no
+      sign-in started are refused with no cookie. A cookie is shut
+      out by a change of owner, a pinned subject that differs, or
+      sign-in no longer configured, also while the app runs.
+    - The cookie opens no API endpoint, and an API token opens no
+      page. Every UI endpoint but the listed sign-in pages and the
+      static files needs the owner.
+    - Every write from the UI is logged as `web` with the API's
+      description and can be undone from its notice. A form sent
+      twice writes once and is answered the same, also once the
+      form is gone. Antiforgery is checked, item text is
+      HTML-encoded, and completing a repeating item advances it
+      once.
+    - The Chromium smoke test passes locally on Windows and in CI
+      (run 43932478398 at 68cdc1b: Passed 1, Skipped 0). It uses
+      enhanced navigation and forms throughout, and fails if any
+      step is a full page load (tried).
+    - Three independent reviews (one per pull request); their
+      findings are fixed. CodeRabbit's findings on #9 and #10 are
+      fixed and listed in the pull request descriptions, not
+      answered on GitHub. CodeRabbit skipped #11 because its base
+      is not `main`.
+    - Not checked: real Google sign-in end to end; the Docker image
+      and the Fly deploy with these changes (forwarded headers, the
+      keys in `/data/keys`); browsers other than Chromium; the UI
+      on a phone. M3 builds on the M1 design the owner has not
+      reviewed, and the `WriteRunner` split changed M1 code.
+    - Known limits: `dotnet run` on the `http` launch profile shows
+      a 500 on every page, because antiforgery cookies are Secure
+      only; use the `https` profile. Signing out only deletes the
+      browser's cookie. `X-Forwarded-Proto` is trusted from any
+      sender. The weekly review and missed reminders definitions
+      are provisional until M5.
   - For the Kotlin alarm spike (PR #8), on 2026-11-15:
     - `./gradlew assembleRelease lint` succeeds with no Kotlin
       warnings (they are errors) and no lint errors, also from a
