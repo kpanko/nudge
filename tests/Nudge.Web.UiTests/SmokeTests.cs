@@ -79,10 +79,15 @@ public sealed class SmokeTests
         await using var browser = await playwright.Chromium.LaunchAsync(
             new BrowserTypeLaunchOptions { Headless = true });
         await using var context = await browser.NewContextAsync(
-            new BrowserNewContextOptions { BaseURL = host.BaseAddress });
+            new BrowserNewContextOptions
+            {
+                BaseURL = host.BaseAddress,
+
+                // The certificate is made for the run; see BrowserHost.
+                IgnoreHTTPSErrors = true,
+            });
         await context.Tracing.StartAsync(
             new TracingStartOptions { Screenshots = true, Snapshots = true });
-        await host.RouteGoogleAsync(context);
         var page = await context.NewPageAsync();
         var errors = new List<string>();
         page.Console += (_, message) =>
@@ -117,6 +122,9 @@ public sealed class SmokeTests
             File.WriteAllLines(
                 Path.Combine(Artifacts, "console-errors.txt"),
                 errors);
+            File.WriteAllLines(
+                Path.Combine(Artifacts, "server-log.txt"),
+                host.Log.Lines);
             throw;
         }
     }
@@ -190,11 +198,12 @@ public sealed class SmokeTests
             await Expect(page.Locator(".error")).ToHaveCountAsync(0);
         }
 
-        await Expect(page.Locator("li.item", new PageLocatorOptions { HasText = "Learn to sail" }))
-            .ToHaveCountAsync(0);
+        var seeded = page.Locator(
+            "li.item",
+            new PageLocatorOptions { HasText = "Learn to sail" });
+        await Expect(seeded).ToHaveCountAsync(0);
         await GoAsync(page, "Someday", "Someday/maybe");
-        await Expect(page.Locator("li.item", new PageLocatorOptions { HasText = "Learn to sail" }))
-            .ToHaveCountAsync(1);
+        await Expect(seeded).ToHaveCountAsync(1);
 
         // Still the document the test started on: every step above
         // was an enhanced navigation or an enhanced form post.
