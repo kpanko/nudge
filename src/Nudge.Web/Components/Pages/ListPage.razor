@@ -31,7 +31,9 @@ else
     {
         var path = Navigation.ToBaseRelativePath(Navigation.Uri)
             .Split('?', '#')[0];
-        _state = path.Equals("someday", StringComparison.OrdinalIgnoreCase)
+        _state = path
+                .TrimEnd('/')
+                .Equals("someday", StringComparison.OrdinalIgnoreCase)
             ? ItemState.Someday
             : ItemState.WaitingFor;
         _items = await Queries.ListAsync(_state);

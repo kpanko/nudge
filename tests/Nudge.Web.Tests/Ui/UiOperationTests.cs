@@ -643,12 +643,22 @@ public sealed class UiOperationTests : IAsyncLifetime
     [Fact]
     public async Task Form_WithAnotherSessionsToken_IsRefused()
     {
+        // Two sessions of the owner on the same app, so the token can
+        // be read; it is refused for not belonging to this session's
+        // antiforgery cookie.
         var inbox = await UiPage.OpenAsync(_host, "/inbox");
         var fields = inbox.Fields("capture");
-        using var other = new WebUiHost(now: Now);
-        await other.SignInAsync();
-        var token = (await UiPage.OpenAsync(other, "/inbox"))
+        var first = new Dictionary<string, string>(_host.Cookies);
+        _host.Cookies.Clear();
+        await _host.SignInAsync();
+        var token = (await UiPage.OpenAsync(_host, "/inbox"))
             .Fields("capture")["__RequestVerificationToken"];
+        Assert.NotEqual(fields["__RequestVerificationToken"], token);
+        _host.Cookies.Clear();
+        foreach (var (name, value) in first)
+        {
+            _host.Cookies[name] = value;
+        }
 
         var reply = await inbox.SendAsync(
             fields,
@@ -687,6 +697,101 @@ public sealed class UiOperationTests : IAsyncLifetime
 
         var shown = await UiPage.FromAsync(_host, $"/items/{id}", reply);
         Assert.NotEmpty(shown.Texts("[role=alert]"));
+    }
+
+    // Processing changes only what the owner changes: a project and
+    // a defer date the item already has are shown, and kept.
+    [Fact]
+    public async Task Process_KeepsTheProjectAndDeferDateItHas()
+    {
+        var project = await _host.CreateAsync("/api/projects", "House");
+        var id = await _host.CreateItemAsync(
+            $$"""
+            {"title":"Fix the gate","projectId":"{{project}}",
+             "deferUntil":"2026-11-20"}
+            """);
+        var inbox = await UiPage.OpenAsync(_host, "/inbox");
+        var fields = inbox.Fields($"process-{id:N}");
+        Assert.Equal(project.ToString(), fields["projectId"]);
+        Assert.Equal("2026-11-20", fields["deferUntil"]);
+
+        AssertWebChange(
+            await inbox.SendAsync(fields, ("list", "NextAction")),
+            "Edit item");
+
+        var item = JsonNode.Parse((await _host.ItemJsonAsync(id))!)!;
+        Assert.Equal("nextAction", item["list"]!.GetValue<string>());
+        Assert.Equal(project.ToString(), item["projectId"]!.GetValue<string>());
+        Assert.Equal("2026-11-20", item["deferUntil"]!.GetValue<string>());
+    }
+
+    // A due time with seconds, as the API can set it, survives a
+    // reschedule of the date from the item's page.
+    [Fact]
+    public async Task Reschedule_KeepsTheSecondsOfTheDueTime()
+    {
+        var id = await _host.CreateItemAsync(
+            """{"title":"Call at the half","due":{"date":"2026-11-20","time":"09:30:45"}}""");
+        var page = await UiPage.OpenAsync(_host, $"/items/{id}");
+        Assert.Equal("09:30:45", page.Fields("due")["time"]);
+
+        AssertWebChange(
+            await page.SubmitAsync("due", ("date", "2026-11-21")),
+            "Reschedule item");
+
+        var due = JsonNode.Parse((await _host.ItemJsonAsync(id))!)!["due"]!;
+        Assert.Equal("2026-11-21", due["date"]!.GetValue<string>());
+        Assert.Equal("09:30:45", due["time"]!.GetValue<string>());
+    }
+
+    // A reminder's minutes count from the due time, or from midnight
+    // when there is none, and the page says so.
+    [Fact]
+    public async Task ReminderMinutes_AreDescribedFromTheDueTime()
+    {
+        var id = await _host.CreateItemAsync(
+            """
+            {"title":"Meet the builder",
+             "due":{"date":"2026-11-20","time":"14:00"},
+             "reminders":[{"offsetMinutes":-30}]}
+            """);
+
+        var page = await UiPage.OpenAsync(_host, $"/items/{id}");
+
+        Assert.Contains(
+            "Minutes from the due time",
+            page.Html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            page.Texts("section.group li"),
+            text => text.StartsWith(
+                "-30 minutes from the due time (2026-11-20 13:30)",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain("start of the due day", page.Html, StringComparison.Ordinal);
+    }
+
+    // The notice's undo names its change in the query: the same form
+    // sent for another change is another request, not a replay.
+    [Fact]
+    public async Task UndoNotice_SentForAnotherChange_IsNotAReplay()
+    {
+        var inbox = await UiPage.OpenAsync(_host, "/inbox");
+        var first = PathOf(await inbox.SubmitAsync("capture", ("title", "One")));
+        inbox = await UiPage.OpenAsync(_host, "/inbox");
+        var second = PathOf(await inbox.SubmitAsync("capture", ("title", "Two")));
+        var notice = await UiPage.OpenAsync(_host, first);
+        var fields = notice.Fields("undo-notice");
+        AssertWebChange(await notice.SendAsync(fields), "Undo change");
+        var changes = _host.Count("Changes");
+
+        var other = await UiPage.OpenAsync(_host, second);
+        var reply = await other.SendAsync(fields);
+
+        Assert.NotEqual(HttpStatusCode.Redirect, reply.StatusCode);
+        Assert.Equal(changes, _host.Count("Changes"));
+        Assert.Contains(
+            "Two",
+            (await UiPage.OpenAsync(_host, "/inbox")).Texts("li.item > a"));
     }
 
     // The first named M1 regression test, from the web UI: one

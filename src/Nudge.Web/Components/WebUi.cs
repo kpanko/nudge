@@ -206,7 +206,7 @@ public static class WebUi
                 context.RequestAborted);
         return record is not null
             && record.Fingerprint == WebWrites.FormFingerprint(
-                request.Path,
+                request,
                 form)
             ? WebWrites.Target(form["then"], record.ChangeId)
             : null;
