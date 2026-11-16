@@ -40,6 +40,53 @@ public sealed class WebWrites(
         return Guid.NewGuid().ToString("N");
     }
 
+    /// <summary>The idempotency key a form's key is kept under, or
+    /// null if it is not one this UI makes.</summary>
+    public static string? RecordKey(string? key)
+    {
+        return key is { Length: 32 } && key.All(Uri.IsHexDigit)
+            ? $"web-{key}"
+            : null;
+    }
+
+    /// <summary>
+    /// What makes two sendings of a form with the same key the same
+    /// request: the page it was sent to and every field as sent
+    /// (the form's name, its values, where to go after), but not the
+    /// antiforgery token. Taken from the request alone, so that a
+    /// repeat can be recognised before the page is rendered; see
+    /// <see cref="WebUi.UseUiReplay"/>.
+    /// </summary>
+    public static string FormFingerprint(
+        PathString page,
+        IFormCollection form)
+    {
+        var fields = form
+            .Where(field => field.Key is not (AntiforgeryField or "key"))
+            .OrderBy(field => field.Key, StringComparer.Ordinal)
+            .Select(field => new[] { field.Key }.Concat(field.Value!))
+            .ToList();
+        return WriteRunner.Fingerprint(
+            "POST",
+            page.Value ?? "/",
+            JsonSerializer.SerializeToUtf8Bytes(fields));
+    }
+
+    /// <summary>Where the browser goes after a write: a path on this
+    /// site (anything else is the home page), with the change to
+    /// offer to undo.</summary>
+    public static string Target(
+        string? then,
+        long? changeId)
+    {
+        var path = Nudge.Web.Auth.OwnerAuthentication
+            .LocalReturnUrl(then)
+            .Split('?', '#')[0];
+        return changeId is { } id ? $"{path}?change={id}" : path;
+    }
+
+    private const string AntiforgeryField = "__RequestVerificationToken";
+
     public Task<WebWriteResult> CaptureAsync(
         string key,
         string? title)
@@ -333,21 +380,16 @@ public sealed class WebWrites(
         var http = accessor.HttpContext
             ?? throw new InvalidOperationException(
                 "A write from the web UI was made outside a request.");
-        if (key.Length != 32 || !key.All(Uri.IsHexDigit))
+        if (RecordKey(key) is not { } recordKey
+            || !http.Request.HasFormContentType)
         {
             return WebWriteResult.Invalid(
                 "The form is out of date. Reload the page and try again.");
         }
 
-        // What the API would compare for the same key: the method,
-        // the path, and the body with the properties it names.
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(
-            new
-            {
-                present = present.Order(StringComparer.Ordinal),
-                body,
-            },
-            JsonSetup.Options);
+        var fingerprint = FormFingerprint(
+            http.Request.Path,
+            http.Request.Form);
         await using var scope = scopes.CreateAsyncScope();
         var runner = scope.ServiceProvider.GetRequiredService<WriteRunner>();
         try
@@ -360,10 +402,10 @@ public sealed class WebWrites(
                     present,
                     route,
                     DryRun: false,
-                    $"web-{key}",
+                    recordKey,
                     method,
                     path,
-                    WriteRunner.Fingerprint(method, path, bytes)),
+                    fingerprint),
                 work,
                 http.RequestAborted);
             return new WebWriteResult(done.ChangeId, null);
