@@ -18,14 +18,27 @@
   this file, in the six pull request descriptions, and in the
   DECISIONS.md entries of those three dates.
 - M2, the Kotlin alarm spike: built, PR #8 is open and not merged
-  (branch `m2-kotlin-alarm-spike`, three commits).
+  (branch `m2-kotlin-alarm-spike`, four commits; CI passes at
+  the third, check it at the fourth, 017da13).
   https://github.com/kpanko/nudge/pull/8
+  CodeRabbit reviewed it and left three minor comments; all three
+  are fixed in 017da13 and answered on the pull request (see 67
+  and 68 under "Blockers / Open Questions"). The owner said on
+  2026-11-15 they will review the PR before it is merged.
   The first M2 task is ticked in MILESTONES.md on that branch, not
   on main yet. The second task is the owner's: sideload the APK
   and run the checklist in `spikes/AlarmSpikeKotlin/README.md` on
   the phone. Every M2 acceptance criterion is still open until
   then. See "Recently Completed" and "Key Context" for what the
   spike is and what was checked.
+- M3, the web UI: started on 2026-11-15, at the owner's request,
+  in a separate session working in its own worktree on branches
+  cut from main (the first is `claude/m3-web-ui-6a4309`). It was
+  still running when this session ended, building the first of a
+  few pull requests (UI shell and auth). It is to open pull
+  requests without merging them and to write its own state into
+  this file when it finishes; until then, look at the open pull
+  requests on GitHub for where it stands.
 - Before the Kotlin spike: on 2026-11-15
   the owner decided the Android app will be Kotlin, offline-first
   (see DECISIONS.md under that date), so the spike was
@@ -170,13 +183,12 @@ approve it.
    APK and run the checklist on the phone, filling in the results
    table in the spike's README. When the three open M2 criteria
    pass, tick them and the second task, and mark M2 `done`.
-5. M3, the web UI, is the next milestone to build. It was left
-   unstarted on 2026-11-15 on purpose: it builds on the M1 design in
+5. M3, the web UI: review the pull requests its session opens
+   (see "In Progress"). Earlier on 2026-11-15 it had been left
+   unstarted on purpose: it builds on the M1 design in
    #2 to #6, which the owner has not reviewed yet, and its Google
    sign-in cannot be checked end to end without an OAuth client the
-   owner creates. Its first tasks are the Razor component
-   library and Google OIDC with the allowlist. If the owner wants it
-   before the review, cut its branch from main.
+   owner creates. Both cautions still hold for what it builds.
 
 ## Blockers / Open Questions
 - No blockers.
@@ -471,6 +483,16 @@ approve it.
         again; the README says to press "Re-register all".
     66. Lint's three warnings (backup rules, the held app context,
         a view constructor) are left as they are, not suppressed.
+    67. The boot receiver stays exported, against CodeRabbit's
+        suggestion of `exported="false"`, so that no manufacturer's
+        boot broadcast is shut out; it ignores every action but
+        `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED` and
+        `QUICKBOOT_POWERON`.
+    68. A fire for a pending alarm that is not yet due (a stale
+        broadcast, for example just after Snooze) is logged as
+        `fired-early`, not shown, and the alarm is registered
+        again. CodeRabbit suggested only ignoring it. A second fire
+        for an alarm already showing re-posts its notification.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
@@ -496,6 +518,14 @@ approve it.
       notification was re-shown and one alarm re-registered, which
       fired at +711 ms; log lines written before shared storage
       was ready were in `events.log` afterwards; Copy log worked.
+    - After the CodeRabbit fixes (017da13), build and lint again,
+      and on the emulator: a normal alarm +553 ms; Snooze, then
+      +87 ms, with no `fired-early` line; after `adb reboot` a
+      future alarm was re-registered and fired at +213 ms; an
+      explicit broadcast with an unknown action to the boot
+      receiver logged and restored nothing. The `fired-early` path
+      itself could not be provoked from adb and was checked by
+      reading only.
     - Not checked: anything on the owner's phone (every M2
       acceptance criterion is still open); a real swipe gesture
       (`input swipe` did not dismiss the notification on the
