@@ -11,6 +11,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Google sign-in for the web UI. On the same 10.0 patch as the
+         framework, like the OpenAPI package. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.15" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- EF Core brings Microsoft.Data.Sqlite with it, so the two
          cannot end up on different versions. EF Core 11 needs
          .NET 11: stay on 10.0.x while this project targets
