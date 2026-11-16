@@ -1203,3 +1203,73 @@ The keys are not encrypted at rest and are not in the Litestream
 backup; losing them only signs the owner out.
 
 ---
+
+## 2026-11-16 The web UI's writes run the API's work through the runner's core
+
+**Context:** Every change must be logged with its source, undoable,
+and safe to send twice. The API's write endpoints already guarantee
+this through `WriteRunner`, but the runner read its input from an
+HTTP request and the handlers read ids from the route through the
+`HttpContext`.
+
+**Decision:** `WriteRunner` is split. `ExecuteAsync` takes a
+`WriteRequest` already read and checked (source, description, body,
+the properties it names, route values, dry run, key, method, path,
+fingerprint) and does what the runner always did: set the source,
+take the transaction before reading, run the work, save, roll back a
+dry run, keep the idempotency record, commit. `RunAsync`, the API's
+adapter, reads and checks the request as before and calls it; the
+API's answers are unchanged. `Write<TBody>` takes route values
+instead of the `HttpContext`. The handlers in `ItemEndpoints` and
+the others are `internal`, and `WebWrites` calls those same
+functions, each in a DI scope of its own as an API request would
+be, with the source `web`, the API endpoint's description, method
+and path, and a key from the form. Each form carries a key made when
+the page is rendered (`web-` and a GUID), so a form sent twice is
+carried out once; the same key with other values is refused on the
+page. Pages are rendered and forms handled by Blazor's static
+server rendering: a form posts back to its page with the
+antiforgery token, the write runs, and the browser is sent back to
+the page with `?change=<number>`, where a notice offers to undo it.
+A refusal is shown in the form, not as problem details.
+
+**Alternatives considered:** The browser calling `/api` with the
+cookie (opens the API to cross-site writes). Writes of the UI's own
+that call `Nudge.Core` directly (a second write path to keep
+honest). Blazor's `[SupplyParameterFromForm]` binding (one fixed
+form name per component, which repeated forms in a list do not fit).
+
+**Consequences:** One write path for the API and the UI. The UI's
+idempotency records look like the API's, under keys that start with
+`web-`. Undo from the web UI is the same undo.
+
+---
+
+## 2026-11-16 What "weekly review" and "missed reminders" mean for now
+
+**Context:** M3 asks for both views. Neither has support in
+`Nudge.Core`: there is no record of reviews, and no record of which
+reminders the phone showed or the owner acknowledged (that is M5).
+
+**Decision:** The weekly review is a read-only checklist: the number
+of items in the inbox, projects that have no open next action of
+their own (items in projects under them do not count), waiting for,
+someday/maybe, open items due before the owner's today, and those
+due today or in the six days after it. Missed reminders are, for
+now, every reminder of an open item whose `FireTime` for the item as
+it stands (the current occurrence, for a repeating item) is not
+after now; a reminder of an item without a due date and a relative
+offset never fires, so is never missed. Next actions leave out items
+deferred past the owner's today and list an item under each of its
+contexts, by name, with those without a context last. The page says
+the missed list is provisional.
+
+**Alternatives considered:** Storing "last reviewed" dates
+(nothing asks for them yet). Waiting for M5 for missed reminders
+(the view would be empty until then).
+
+**Consequences:** Until M5 adds acknowledgement, a missed reminder
+stays listed until the item is completed or rescheduled or the
+reminder removed. M5 must replace the definition, not add to it.
+
+---
