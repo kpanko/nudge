@@ -143,10 +143,13 @@ public sealed class SmokeTests
         var row = page.Locator("li.item", new PageLocatorOptions { HasText = Title });
         await Expect(row).ToHaveCountAsync(1);
 
-        // Process it to a next action.
+        // Process it to a next action, with a double click: the form
+        // is gone after the first, and the second must still be
+        // answered as the first, with no error shown.
         await row.GetByLabel("List").SelectOptionAsync("NextAction");
-        await Button(row, "Process").ClickAsync();
+        await Button(row, "Process").DblClickAsync();
         await ExpectNoticeAsync(page, "Edit item");
+        await Expect(page.Locator(".error")).ToHaveCountAsync(0);
         await Expect(page.Locator(".empty")).ToHaveTextAsync("The inbox is empty.");
 
         // Give it the context, on its own page.
