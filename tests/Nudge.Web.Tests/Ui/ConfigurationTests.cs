@@ -98,6 +98,23 @@ public sealed class ConfigurationTests : IDisposable
         Assert.False(changed.Cookies.ContainsKey(Cookie));
     }
 
+    // The configuration is read again on every request, so a change
+    // of owner in a running app takes effect without a restart.
+    [Fact]
+    public async Task OwnerChangedWhileRunning_ShutsOutTheCookie()
+    {
+        using var host = new WebUiHost();
+        await host.SignInAsync();
+        Assert.Equal(HttpStatusCode.OK, (await host.GetAsync("/")).StatusCode);
+
+        host.Services
+            .GetRequiredService<Microsoft.Extensions.Configuration
+                .IConfiguration>()[OwnerSignIn.EmailSetting] =
+            "new-owner@example.test";
+
+        AssertSentToSignIn(await host.GetAsync("/"), "owner changed");
+    }
+
     [Fact]
     public async Task PinnedSubject_ShutsOutAnotherSubjectsCookie()
     {

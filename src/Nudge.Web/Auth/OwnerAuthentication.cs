@@ -254,18 +254,25 @@ public static class OwnerAuthentication
     }
 
     /// <summary>
-    /// Checks the cookie against the configuration on every request,
-    /// so that an owner changed in the configuration, or sign-in no
-    /// longer configured, shuts out a cookie made before.
+    /// Checks the cookie against the configuration as it is now, read
+    /// again on every request, so that an owner changed in the
+    /// configuration, or sign-in no longer configured, shuts out a
+    /// cookie made before, even while the app runs. Sign-in must also
+    /// have been configured when the app started, since the Google
+    /// scheme is only registered then.
     /// </summary>
     private static async Task ValidateCookieAsync(
         CookieValidatePrincipalContext context,
-        OwnerSignIn signIn)
+        OwnerSignIn atStartup)
     {
         var principal = context.Principal;
+        var current = OwnerSignIn.From(
+            context.HttpContext.RequestServices
+                .GetRequiredService<IConfiguration>());
         if (principal is not null
+            && atStartup.Configured
             && IsOwner(principal)
-            && signIn.Allows(
+            && current.Allows(
                 principal.FindFirstValue(EmailClaim),
                 true,
                 principal.FindFirstValue(SubjectClaim)))
