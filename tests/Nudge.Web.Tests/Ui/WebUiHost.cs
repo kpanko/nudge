@@ -167,7 +167,8 @@ internal sealed partial class WebUiHost : IDisposable
         string? email = OwnerEmail,
         bool emailVerified = true,
         string subject = OwnerSubject,
-        string returnUrl = "/")
+        string returnUrl = "/",
+        string issuer = FakeGoogle.Issuer)
     {
         var challenge = await GetAsync(
             "/signin?returnUrl=" + Uri.EscapeDataString(returnUrl));
@@ -183,7 +184,8 @@ internal sealed partial class WebUiHost : IDisposable
             email,
             emailVerified,
             subject,
-            query["nonce"]);
+            query["nonce"],
+            issuer: issuer);
         var callback = new Uri(query["redirect_uri"]);
         return await SendAsync(
             HttpMethod.Post,

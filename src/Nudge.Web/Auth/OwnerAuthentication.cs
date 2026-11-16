@@ -43,6 +43,10 @@ public static class OwnerAuthentication
 
     private const string GoogleAuthority = "https://accounts.google.com";
 
+    /// <summary>The issuers Google's id tokens may name.</summary>
+    public static readonly IReadOnlyList<string> GoogleIssuers =
+        [GoogleAuthority, "accounts.google.com"];
+
     /// <summary>
     /// Registers the cookie, Google when it is configured, and the
     /// <see cref="Policy"/>. The API's scheme stays the default and
@@ -191,6 +195,10 @@ public static class OwnerAuthentication
         // Claims keep the names Google gives them (sub, email,
         // email_verified), and nothing but the id token is used.
         options.MapInboundClaims = false;
+
+        // Google documents its id tokens' iss as either of these;
+        // any other issuer is refused.
+        options.TokenValidationParameters.ValidIssuers = GoogleIssuers;
         options.GetClaimsFromUserInfoEndpoint = false;
         options.SaveTokens = false;
         options.Events.OnTokenValidated = context =>

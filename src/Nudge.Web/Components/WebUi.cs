@@ -1,7 +1,8 @@
+using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.Infrastructure;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Nudge.Web.Auth;
 
 namespace Nudge.Web.Components;
@@ -67,12 +68,12 @@ public static class WebUi
         }
         else
         {
-            // Not the default folder in the user's profile: unset
-            // means nothing is written anywhere.
-            services.Replace(
-                ServiceDescriptor.Singleton<IDataProtectionProvider>(
-                    provider => new EphemeralDataProtectionProvider(
-                        provider.GetRequiredService<ILoggerFactory>())));
+            // Not the default folder in the user's profile (or
+            // ~/.aspnet in a container), which would be read and
+            // written otherwise: unset means the keys live in this
+            // process only.
+            services.Configure<KeyManagementOptions>(
+                options => options.XmlRepository = new MemoryKeyRepository());
         }
 
         services.AddAntiforgery(
@@ -148,4 +149,30 @@ public static class WebUi
             new Microsoft.AspNetCore.Authorization.AuthorizeAttribute(
                 OwnerAuthentication.Policy)),
         "Web UI: not found");
+
+    /// <summary>Keeps Data Protection's keys in memory, for when no
+    /// folder is configured.</summary>
+    internal sealed class MemoryKeyRepository : IXmlRepository
+    {
+        private readonly List<XElement> _elements = [];
+        private readonly Lock _lock = new();
+
+        public IReadOnlyCollection<XElement> GetAllElements()
+        {
+            lock (_lock)
+            {
+                return _elements.Select(e => new XElement(e)).ToList();
+            }
+        }
+
+        public void StoreElement(
+            XElement element,
+            string friendlyName)
+        {
+            lock (_lock)
+            {
+                _elements.Add(new XElement(element));
+            }
+        }
+    }
 }

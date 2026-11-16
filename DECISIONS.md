@@ -1133,8 +1133,10 @@ let another site write.
 `__Host-nudge`: Secure, HttpOnly, SameSite=Lax, 30 days sliding) and
 `Google` (OpenID Connect, authority `https://accounts.google.com`,
 code flow with PKCE, scopes `openid email`, callback
-`/signin-google`). The API token stays the default scheme and the
-fallback policy stays the API token's; the web UI's endpoints
+`/signin-google`; the id token's issuer must be
+`https://accounts.google.com` or `accounts.google.com`, the two
+forms Google documents). The API token stays the default scheme
+and the fallback policy stays the API token's; the web UI's endpoints
 require the policy `Owner` (the cookie scheme, an identity of type
 `Owner`). So the cookie is never read on the API side and a token
 never opens a page. At sign-in the id token's `email` must equal
@@ -1183,9 +1185,10 @@ only through Fly's proxy, which sets it. `X-Forwarded-For` and
 host in the redirect address. Keys are kept as files in
 `Nudge:DataProtection:KeysPath`, set to `/data/keys` in `fly.toml`,
 under the application name `Nudge`; when it is unset (tests,
-`dotnet run`) the keys live in memory and nothing is written to the
-user's profile. Problem-details status pages now apply only to the
-API side (`/api`, `/healthz`, `/openapi`); a path of the web UI
+`dotnet run`) the keys live in an in-memory key repository, so the
+default folder in the user's profile (or `~/.aspnet` in a
+container) is neither read nor written. Problem-details status
+pages now apply only to the API side (`/api`, `/healthz`, `/openapi`); a path of the web UI
 that matches nothing needs the owner signed in, then shows the
 `/not-found` page.
 
