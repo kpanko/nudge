@@ -107,25 +107,43 @@ public sealed class SmokeTests
         }
         catch
         {
+            // The text logs first; then the screenshot and the trace,
+            // each on its own, since a crashed page can fail either.
+            // Whatever fails here, the test's own failure is rethrown.
             Directory.CreateDirectory(Artifacts);
-            await page.ScreenshotAsync(
-                new PageScreenshotOptions
-                {
-                    Path = Path.Combine(Artifacts, "smoke.png"),
-                    FullPage = true,
-                });
-            await context.Tracing.StopAsync(
-                new TracingStopOptions
-                {
-                    Path = Path.Combine(Artifacts, "smoke-trace.zip"),
-                });
             File.WriteAllLines(
                 Path.Combine(Artifacts, "console-errors.txt"),
                 errors);
             File.WriteAllLines(
                 Path.Combine(Artifacts, "server-log.txt"),
                 host.Log.Lines);
+            await SaveAsync(
+                "smoke.png",
+                path => page.ScreenshotAsync(
+                    new PageScreenshotOptions { Path = path, FullPage = true }));
+            await SaveAsync(
+                "smoke-trace.zip",
+                path => context.Tracing.StopAsync(
+                    new TracingStopOptions { Path = path }));
             throw;
+        }
+    }
+
+    /// <summary>Saves one artifact of a failed run; if that fails
+    /// too, says why in a file beside it instead of throwing.
+    /// </summary>
+    private static async Task SaveAsync(
+        string name,
+        Func<string, Task> save)
+    {
+        var path = Path.Combine(Artifacts, name);
+        try
+        {
+            await save(path);
+        }
+        catch (Exception e)
+        {
+            await File.WriteAllTextAsync(path + ".error.txt", e.ToString());
         }
     }
 
