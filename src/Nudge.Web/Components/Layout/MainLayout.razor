@@ -4,6 +4,18 @@
     <a class="brand" href="/">Nudge</a>
     @if (SignedIn)
     {
+        <nav class="views">
+            <NavLink href="/inbox">Inbox</NavLink>
+            <NavLink href="/next">Next</NavLink>
+            <NavLink href="/projects" Match="NavLinkMatch.Prefix">
+                Projects
+            </NavLink>
+            <NavLink href="/waiting">Waiting</NavLink>
+            <NavLink href="/someday">Someday</NavLink>
+            <NavLink href="/review">Review</NavLink>
+            <NavLink href="/missed">Missed</NavLink>
+            <NavLink href="/changes">Changes</NavLink>
+        </nav>
         <form class="sign-out"
               method="post"
               action="@OwnerAuthentication.SignOutPath">
@@ -14,6 +26,10 @@
 </header>
 
 <main>
+    @if (SignedIn)
+    {
+        <Notice />
+    }
     @Body
 </main>
 

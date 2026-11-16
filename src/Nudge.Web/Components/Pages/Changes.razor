@@ -1,0 +1,56 @@
+@page "/changes"
+@inject UiQueries Queries
+@inject WebWrites Writes
+
+<PageTitle>Changes - Nudge</PageTitle>
+
+<h1>Changes</h1>
+<p class="hint">
+    The latest @UiQueries.RecentChanges changes, newest first. Undoing
+    one is itself a change, which can be undone in turn.
+</p>
+
+<table class="changes">
+    <thead>
+        <tr><th>#</th><th>When</th><th>What</th><th>By</th><th></th></tr>
+    </thead>
+    <tbody>
+        @foreach (var change in _changes)
+        {
+            <tr>
+                <td>@change.Id</td>
+                <td>@Words.Instant(change.At, Queries.Zone)</td>
+                <td>
+                    @change.Description
+                    @if (change.Undoes is { } undone)
+                    {
+                        <span class="fact">undoes @undone</span>
+                    }
+                </td>
+                <td>@change.Source</td>
+                <td>
+                    <ActionForm Name="@($"undo-{change.Id}")"
+                                Action="Undo(change.Id)"
+                                Class="inline">
+                        <button type="submit">Undo</button>
+                    </ActionForm>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private IReadOnlyList<Nudge.Web.Data.Change> _changes = [];
+
+    private Func<IFormCollection, string, Task<WebWriteResult>> Undo(
+        long changeId)
+    {
+        return (form, key) => Writes.UndoAsync(key, changeId);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _changes = await Queries.ChangesAsync();
+    }
+}

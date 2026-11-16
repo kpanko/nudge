@@ -61,21 +61,22 @@ the owner's phone before building the real app.
 
 ---
 
-## M3: Web UI — `planned`
+## M3: Web UI — `in-progress`
 **Goal:** Daily use from a browser.
 
 **Acceptance criteria:**
 - [ ] Sign in with Google; any other account is rejected
-- [ ] Capture to inbox, process, complete, defer, edit recurrence
-- [ ] Views: inbox, next actions by context, projects, waiting,
-      someday/maybe, weekly review, missed reminders
+- [x] Capture to inbox, process, complete, defer, edit recurrence
+- [x] Views: inbox, next actions by context, projects, waiting,
+      someday/maybe, weekly review, missed reminders (missed is
+      provisional until M5 records acknowledgements)
 - [ ] Playwright smoke test passes in CI
 
 **Tasks:**
-- [ ] Razor components for the web UI
+- [x] Razor components for the web UI
 - [x] Google OIDC with allowlist (tested against a fake Google;
       real Google sign-in unverified until the OAuth client exists)
-- [ ] Views listed above
+- [x] Views listed above
 
 ---
 

@@ -5,26 +5,27 @@ namespace Nudge.Web.Api;
 
 /// <summary>
 /// What the work of one write endpoint is given: the request's
-/// context, which a transaction already holds, the parsed body, and
-/// the time and zone to use.
+/// context, which a transaction already holds, the parsed body, the
+/// route's values, and the time and zone to use. It does not depend
+/// on HTTP, so the web UI gives the same work the same input.
 /// </summary>
 public sealed class Write<TBody>
 {
     private readonly IReadOnlySet<string> _present;
-    private readonly HttpContext _http;
+    private readonly RouteValueDictionary _route;
 
     internal Write(
         NudgeDbContext db,
         TBody body,
         IReadOnlySet<string> present,
-        HttpContext http,
+        RouteValueDictionary route,
         DateTimeOffset now,
         TimeZoneInfo zone)
     {
         Db = db;
         Body = body;
         _present = present;
-        _http = http;
+        _route = route;
         Now = now;
         Zone = zone;
     }
@@ -58,7 +59,7 @@ public sealed class Write<TBody>
     /// checked to be a GUID.</summary>
     public Guid RouteGuid(string name)
     {
-        return Guid.Parse((string)_http.GetRouteValue(name)!);
+        return Guid.Parse((string)_route[name]!);
     }
 
     /// <summary>A route value the route's constraint has already
@@ -66,7 +67,7 @@ public sealed class Write<TBody>
     public long RouteLong(string name)
     {
         return long.Parse(
-            (string)_http.GetRouteValue(name)!,
+            (string)_route[name]!,
             System.Globalization.CultureInfo.InvariantCulture);
     }
 }

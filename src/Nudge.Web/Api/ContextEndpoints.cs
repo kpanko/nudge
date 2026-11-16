@@ -90,7 +90,7 @@ internal static class ContextEndpoints
         }
     }
 
-    private static Task<WriteOutcome<ContextView>> CreateAsync(
+    internal static Task<WriteOutcome<ContextView>> CreateAsync(
         Write<ContextCreate> write)
     {
         var context = Domain.Call(

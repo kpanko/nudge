@@ -1,0 +1,28 @@
+@* A list of items in the weekly review, read only. *@
+<section class="group">
+    <h2>@Title</h2>
+    @if (Items.Count == 0)
+    {
+        <p class="empty">@Empty</p>
+    }
+    <ul class="items">
+        @foreach (var item in Items)
+        {
+            <li class="item">
+                <a href="@($"/items/{item.Id}")">@item.Title</a>
+                <ItemFacts Item="item" />
+            </li>
+        }
+    </ul>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<Nudge.Core.Item> Items { get; set; } = [];
+
+    [Parameter]
+    public string Empty { get; set; } = "";
+}
