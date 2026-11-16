@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A plain alarm bell on a round blue background. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+  <path
+      android:fillColor="#1E5AA8"
+      android:pathData="M24,0A24,24 0,1 1,24 48A24,24 0,1 1,24 0Z" />
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M24,10C18.5,10 15,14 15,19.5L15,27L12,31L12,33
+          L36,33L36,31L33,27L33,19.5C33,14 29.5,10 24,10Z" />
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M20,35A4,4 0,0 0,28 35Z" />
+</vector>
