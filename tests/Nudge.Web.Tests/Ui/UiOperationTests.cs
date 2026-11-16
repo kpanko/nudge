@@ -488,6 +488,67 @@ public sealed class UiOperationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, reply.StatusCode);
     }
 
+    // A replay needs the owner signed in like any form: without the
+    // cookie it is sent to sign-in, and nothing is written.
+    [Fact]
+    public async Task SameFormSentTwice_WithoutTheCookie_SendsToSignIn()
+    {
+        var (page, form) = await FormThatGoesAwayAsync("process");
+        var fields = page.Fields(form);
+        await page.SendAsync(fields);
+        var changes = _host.Count("Changes");
+
+        var reply = await _host.SendAsync(
+            HttpMethod.Post,
+            page.Path,
+            new FormUrlEncodedContent(fields),
+            withCookies: false);
+
+        Assert.Equal(HttpStatusCode.Redirect, reply.StatusCode);
+        Assert.StartsWith(
+            "https://localhost/signin?returnUrl=",
+            reply.Headers.Location!.ToString(),
+            StringComparison.Ordinal);
+        Assert.Equal(changes, _host.Count("Changes"));
+    }
+
+    // A key the API stored under a name like the web UI's is not the
+    // UI's to replay: its fingerprint is the API request's, so the
+    // form goes on to the page, which refuses the key.
+    [Fact]
+    public async Task KeyStoredByTheApi_IsNotReplayedThroughTheUi()
+    {
+        var hex = Guid.NewGuid().ToString("N");
+        var token = await _host.CreateTokenAsync("agent");
+        using var message = new HttpRequestMessage(
+            HttpMethod.Post,
+            "/api/contexts")
+        {
+            Content = new StringContent(
+                """{"name":"phone"}""",
+                System.Text.Encoding.UTF8,
+                "application/json"),
+        };
+        message.Headers.Add("Authorization", $"Bearer {token}");
+        message.Headers.Add("Idempotency-Key", $"web-{hex}");
+        var api = await _host.Client.SendAsync(message);
+        Assert.Equal(HttpStatusCode.Created, api.StatusCode);
+        var changes = _host.Count("Changes");
+        var inbox = await UiPage.OpenAsync(_host, "/inbox");
+
+        var reply = await inbox.SubmitAsync(
+            "capture",
+            ("title", "Buy stamps"),
+            ("key", hex));
+
+        var page = await UiPage.FromAsync(_host, "/inbox", reply);
+        Assert.Contains(
+            page.Texts("[role=alert]"),
+            text => text.Contains("already sent", StringComparison.Ordinal));
+        Assert.Equal(changes, _host.Count("Changes"));
+        Assert.Equal(0, _host.Count("Items"));
+    }
+
     // Where to go after a write comes from the form, so a changed one
     // is never followed off the site; a replay with it is no replay.
     [Fact]
@@ -508,7 +569,9 @@ public sealed class UiOperationTests : IAsyncLifetime
     [InlineData("/inbox", 5L, "/inbox?change=5")]
     [InlineData("/items/a?change=3", 4L, "/items/a?change=4")]
     [InlineData("//evil.example.test/inbox", 5L, "/?change=5")]
-    [InlineData("/\evil.example.test", null, "/")]
+    [InlineData("/\\evil.example.test", null, "/")]
+    [InlineData("/inbox\\..", null, "/")]
+    [InlineData("/in\u0001box", null, "/")]
     [InlineData("https://evil.example.test/", null, "/")]
     [InlineData(null, null, "/")]
     public void Target_IsAlwaysOnThisSite(
