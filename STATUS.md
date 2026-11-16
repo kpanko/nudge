@@ -17,9 +17,18 @@
   2026-11-15 as it was done. Everything needed to review it is in
   this file, in the six pull request descriptions, and in the
   DECISIONS.md entries of those three dates.
-- M2, the alarm spike: not started in its new form. On 2026-11-15
+- M2, the Kotlin alarm spike: built, PR #8 is open and not merged
+  (branch `m2-kotlin-alarm-spike`, three commits).
+  https://github.com/kpanko/nudge/pull/8
+  The first M2 task is ticked in MILESTONES.md on that branch, not
+  on main yet. The second task is the owner's: sideload the APK
+  and run the checklist in `spikes/AlarmSpikeKotlin/README.md` on
+  the phone. Every M2 acceptance criterion is still open until
+  then. See "Recently Completed" and "Key Context" for what the
+  spike is and what was checked.
+- Before the Kotlin spike: on 2026-11-15
   the owner decided the Android app will be Kotlin, offline-first
-  (see DECISIONS.md under that date), so the spike is to be
+  (see DECISIONS.md under that date), so the spike was
   rebuilt as a bare Kotlin app. The MAUI spike, PR #7, was closed
   without merging; its branch `m2-alarm-spike` still exists, and
   its checklist in `spikes/AlarmSpike/README.md` there can be
@@ -82,7 +91,27 @@ approve it.
   can reach the app. Do not put real data in before #6 is deployed.
 
 ## Recently Completed
-- Alarm spike app (PR #7), the first task of M2. `spikes/AlarmSpike`
+- Kotlin alarm spike (PR #8, open), the first task of M2.
+  `spikes/AlarmSpikeKotlin` is a standalone Gradle project, outside
+  `Nudge.sln`, that CI never builds: Kotlin, platform APIs only (no
+  Compose, no AndroidX), Android 8.0 and later, target API 35. It
+  carries over the MAUI spike's behaviour, permissions, log format
+  and phone checklist: test alarms with `setAlarmClock`, a
+  notification with Complete, Schedule and Snooze, a swipe brings
+  the alarm back after 30 s, and a boot receiver registers pending
+  alarms again. Build, from the repository root, with a JDK 17 and
+  the Android SDK (API 35):
+
+  ```bash
+  cd spikes/AlarmSpikeKotlin && ./gradlew assembleRelease
+  ```
+
+  The APK is
+  `spikes/AlarmSpikeKotlin/app/build/outputs/apk/release/app-release.apk`
+  (about 640 kB, signed with the local debug key). It has the same
+  application id as the MAUI spike, so uninstall that one first if
+  it is on the phone.
+- MAUI alarm spike app (PR #7, closed without merging). `spikes/AlarmSpike`
   is a MAUI app for Android, outside `Nudge.sln`: it schedules test
   alarms with `AlarmManager.SetAlarmClock`, shows a notification
   with Complete, Schedule and Snooze, notices a swipe and brings the
@@ -136,9 +165,11 @@ approve it.
    Todoist import (M4) puts real data in.
 3. Keep the `planning-agent` token for the MCP server (M6);
    nothing reads it until then.
-4. M2: build the Kotlin alarm spike and run its checklist on the
-   phone. It needs Android Studio or the Android SDK with Gradle
-   on this machine; whether they are installed was not checked.
+4. M2: review and merge PR #8 (merging starts the gated deploy
+   job, though nothing in the server changed), then sideload the
+   APK and run the checklist on the phone, filling in the results
+   table in the spike's README. When the three open M2 criteria
+   pass, tick them and the second task, and mark M2 `done`.
 5. M3, the web UI, is the next milestone to build. It was left
    unstarted on 2026-11-15 on purpose: it builds on the M1 design in
    #2 to #6, which the owner has not reviewed yet, and its Google
@@ -418,11 +449,62 @@ approve it.
         state at each delivery.
     60. Warnings are errors in the spike too (the repository's
         `Directory.Build.props` applies); the build has none.
+  - In the Kotlin alarm spike (PR #8), on 2026-11-15. The newest
+    DECISIONS.md entry, on that branch, explains these:
+    61. No Compose and no AndroidX: only the Android Gradle Plugin
+        and the Kotlin plugin, so the result is about Android
+        itself. M5 will use Compose.
+    62. Gradle 8.11.1, AGP 8.7.3, Kotlin 2.0.21. The Gradle wrapper
+        is committed with its checksum pinned. Gradle itself was
+        not installed on this machine: it was downloaded to a
+        temporary folder, which may be gone; `./gradlew` downloads
+        it again when needed.
+    63. Copy log and Share log send the last 500 lines as text, not
+        a file; `adb pull` gets the whole log.
+    64. The event log never throws. While shared storage is not
+        ready, lines go to `pending.log` in private storage and are
+        moved into `events.log` at the next write. An independent
+        review found that a failed log write could otherwise crash
+        the app before the notification was shown.
+    65. On Android 12 and 12L, alarms are not registered again by
+        themselves after exact alarms are revoked and allowed
+        again; the README says to press "Re-register all".
+    66. Lint's three warnings (backup rules, the held app context,
+        a view constructor) are left as they are, not suppressed.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
 - What was and was not checked:
-  - For the alarm spike (PR #7), on 2026-11-15:
+  - For the Kotlin alarm spike (PR #8), on 2026-11-15:
+    - `./gradlew assembleRelease lint` succeeds with no Kotlin
+      warnings (they are errors) and no lint errors, also from a
+      fresh checkout of the first commit in a temporary worktree.
+    - On the Pixel 7 API 35 emulator (run with `-read-only`, more
+      memory and software graphics, so the AVD is unchanged), with
+      the Release APK of the first commit: app open +402 ms; after
+      `am kill` with the screen off +2173 ms (cold start); forced
+      deep Doze +64 ms (the phone left Doze under a minute before
+      the alarm, and the process was alive); airplane mode after
+      `am kill` +283 ms; after `adb reboot` a future alarm was
+      re-registered and fired at +339 ms, and an overdue one fired
+      as LATE; Complete, Snooze and Schedule each worked, Complete
+      and Snooze also with the process killed first; "Clear all"
+      was detected as a swipe and the alarm came back 30 s later;
+      an update ran the restore; `adb pull` read the log.
+    - After the review fixes, a shorter run on the final APK: cold
+      start after `am kill` +2283 ms; after `adb reboot` one
+      notification was re-shown and one alarm re-registered, which
+      fired at +711 ms; log lines written before shared storage
+      was ready were in `events.log` afterwards; Copy log worked.
+    - Not checked: anything on the owner's phone (every M2
+      acceptance criterion is still open); a real swipe gesture
+      (`input swipe` did not dismiss the notification on the
+      emulator); Doze reached by stillness; Android versions other
+      than 15; manufacturer battery rules; the full checklist on
+      the final APK (only the shorter run above); CI does not build
+      the spike. On the emulator `BOOT_COMPLETED` reached the app
+      1.5 to 3 minutes after the system finished booting.
+  - For the MAUI alarm spike (PR #7, closed), on 2026-11-15:
     - The Release build from the command line is clean (no
       warnings). The APK path is under "Must be done by hand".
       Repeated from a fresh checkout of c8230e4 in a temporary
@@ -638,6 +720,12 @@ approve it.
   PR #1 were valid and are fixed.
 - `RecurrenceRule` returns null when nothing matches within 400
   years; this is deliberate and means "stops repeating".
+- Android toolchain on the dev machine: the Android SDK (API 34
+  and 35, build-tools 35.0.0, a Pixel 7 API 35 emulator) and a
+  JDK 17, both as Visual Studio installed them, under
+  `C:\Program Files (x86)\Android`. Neither `java` nor `adb` is on
+  PATH and `ANDROID_HOME` is unset; the spike's README says what to
+  set. Android Studio and Gradle are not installed.
 - MAUI and Android workloads are installed for .NET 9; the .NET 10
   workloads have not been checked.
 - `dotnet workload list` hangs on this machine; avoid it.
