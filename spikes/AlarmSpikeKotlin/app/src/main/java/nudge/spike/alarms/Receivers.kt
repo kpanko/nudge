@@ -3,6 +3,7 @@ package nudge.spike.alarms
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 
 /**
  * Receives the alarm itself and the notification's Complete, Snooze
@@ -34,7 +35,15 @@ class AlarmReceiver : BroadcastReceiver() {
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val action = intent.action ?: return
+        val action = intent.action
+        if (action == null || action !in RESTORE_ACTIONS) {
+            // The receiver is exported, so any app can send it
+            // anything; only the system's boot and update broadcasts
+            // restore the alarms.
+            Log.w(TAG, "BootReceiver ignored action $action")
+            return
+        }
+
         try {
             val name = action.substring(action.lastIndexOf('.') + 1)
             SpikeLog.write("boot-broadcast", null, name)
@@ -46,5 +55,15 @@ class BootReceiver : BroadcastReceiver() {
                 "$action: ${e.stackTraceToString()}",
             )
         }
+    }
+
+    private companion object {
+        const val TAG = "AlarmSpike"
+
+        val RESTORE_ACTIONS = setOf(
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            "android.intent.action.QUICKBOOT_POWERON",
+        )
     }
 }

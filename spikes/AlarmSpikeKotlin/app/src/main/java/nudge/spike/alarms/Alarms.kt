@@ -86,6 +86,27 @@ object Alarms {
         }
 
         val delay = Clock.nowMs - alarm.dueUtcMs
+
+        // A pending alarm that is not due yet: a stale broadcast, for
+        // example one already on its way when Snooze moved the alarm.
+        // Not shown; registered again so it cannot be left without an
+        // alarm. No tolerance: AlarmManager's RTC alarms and
+        // Clock.nowMs read the same wall clock, and AlarmManager never
+        // delivers before the trigger time, so a real fire is never
+        // early. (A fire for an alarm already Showing, a duplicate
+        // broadcast, is shown again below: the notification is
+        // replaced, not doubled.)
+        if (alarm.state == AlarmState.Pending && delay < 0) {
+            SpikeLog.write(
+                "fired-early",
+                id,
+                "via $via, due ${Clock.format(alarm.dueUtcMs)}, "
+                    + "${-delay} ms early (${alarm.reason}); not shown",
+            )
+            register(context, alarm, "re-registered")
+            return
+        }
+
         val late = if (delay > LATE_AFTER_MS) " LATE" else ""
         val signed = if (delay >= 0) "+$delay" else "$delay"
         // Nothing on the way from here to the notification may throw

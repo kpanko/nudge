@@ -47,7 +47,11 @@
 
     <!-- Re-registers the alarms after a reboot or an update.
          QUICKBOOT_POWERON is what some manufacturers send instead of
-         BOOT_COMPLETED after a fast reboot. -->
+         BOOT_COMPLETED after a fast reboot. It stays exported so that
+         no manufacturer's boot broadcast can be missed, which is what
+         the phone test measures; since other apps can then send it
+         anything, the receiver ignores every action but these
+         three. -->
     <receiver
         android:name=".BootReceiver"
         android:exported="true">

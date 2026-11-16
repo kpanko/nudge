@@ -77,6 +77,11 @@ The events:
 - `complete-ignored`, `snooze-ignored`, `schedule-ignored`,
   `swiped-ignored`: an action for an alarm that is no longer stored
   or no longer showing (for example a second tap); nothing was done.
+- `fired-early`: an alarm broadcast arrived for a pending alarm whose
+  time has not come yet (a stale broadcast, for example one already
+  on its way when Snooze moved the alarm); it is not shown, the
+  details say how many ms early, and the alarm is registered again
+  (a `re-registered` line follows).
 - `fired-unknown`: an alarm arrived for an id that is not stored
   (for example after "Cancel all" raced with it); nothing is shown.
 - `boot-broadcast`, `restore`: the boot receiver ran
@@ -232,9 +237,15 @@ hand.
    adb shell device_config set_sync_disabled_for_tests none
    ```
 
-   Pass as above, with `get deep` showing IDLE or IDLE_MAINTENANCE
-   until the alarm. (`setAlarmClock` is allowed to wake the phone out
-   of Doze; that is what is being tested.)
+   Pass: `get deep` shows IDLE or IDLE_MAINTENANCE after forcing and
+   during the wait, and the alarm is delivered on time (delay under
+   10 s), with a `shown` line and the notification as above. Android
+   leaves deep Doze shortly before it delivers an alarm clock (about
+   a minute before on the emulator, with `min_time_to_alarm` at
+   60000), so INACTIVE or ACTIVE in the last minute and `doze: no` on
+   the `fired` line are expected, not a failure. (`setAlarmClock` is
+   allowed to wake the phone out of Doze; that is what is being
+   tested.)
 
 4. **Airplane mode.** Turn airplane mode on (and Wi-Fi off if it
    stays on), schedule "In 5 min", leave the app, screen off. Pass as
