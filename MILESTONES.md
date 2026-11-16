@@ -56,7 +56,7 @@ the owner's phone before building the real app.
       (Kotlin, 2026-11-15)
 
 **Tasks:**
-- [ ] Bare Kotlin Android app with `setAlarmClock` and boot receiver
+- [x] Bare Kotlin Android app with `setAlarmClock` and boot receiver
 - [ ] Sideload and run the checklist on the phone
 
 ---
