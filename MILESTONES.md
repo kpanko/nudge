@@ -73,7 +73,8 @@ the owner's phone before building the real app.
 
 **Tasks:**
 - [ ] Razor components for the web UI
-- [ ] Google OIDC with allowlist
+- [x] Google OIDC with allowlist (tested against a fake Google;
+      real Google sign-in unverified until the OAuth client exists)
 - [ ] Views listed above
 
 ---
