@@ -88,12 +88,18 @@ object Alarms {
         val delay = Clock.nowMs - alarm.dueUtcMs
         val late = if (delay > LATE_AFTER_MS) " LATE" else ""
         val signed = if (delay >= 0) "+$delay" else "$delay"
+        // Nothing on the way from here to the notification may throw
+        // because of the log line, so the device state is read safely.
+        val state = try {
+            deviceState(context)
+        } catch (e: Exception) {
+            "device state unknown: $e"
+        }
         SpikeLog.write(
             "fired",
             id,
             "due ${Clock.format(alarm.dueUtcMs)}, delay $signed ms$late, "
-                + "via $via (${alarm.reason}); "
-                + deviceState(context),
+                + "via $via (${alarm.reason}); $state",
         )
 
         val showing = alarm.copy(state = AlarmState.Showing)

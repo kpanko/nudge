@@ -246,7 +246,7 @@ class MainActivity : Activity() {
                 + Alarms.yesNo(Alarms.ignoringBatteryOptimisations(this)),
             "Standby bucket: ${standbyBucket()}",
             "System's next alarm clock: " + Alarms.nextSystemAlarm(this),
-            "Log file: ${SpikeLog.file.absolutePath}",
+            "Log file: ${SpikeLog.path}",
         ).joinToString("\n")
         exactSettings.visibility = if (canExact) View.GONE else View.VISIBLE
 
@@ -295,23 +295,39 @@ class MainActivity : Activity() {
         note.setText("")
     }
 
+    /**
+     * Copies the last [SHARED_LOG_LINES] lines: the clipboard goes
+     * through a binder call, which fails on very large text.
+     */
     private fun copyLog() {
         val clipboard = getSystemService(ClipboardManager::class.java)
         clipboard.setPrimaryClip(
-            ClipData.newPlainText("Alarm spike log", SpikeLog.readAll()),
+            ClipData.newPlainText(
+                "Alarm spike log",
+                SpikeLog.lastLines(SHARED_LOG_LINES),
+            ),
         )
-        SpikeLog.write("log-copied", null, "to the clipboard")
+        SpikeLog.write(
+            "log-copied",
+            null,
+            "to the clipboard (last $SHARED_LOG_LINES lines at most)",
+        )
     }
 
     /**
-     * Shares the log as text: a file would need a content provider,
-     * and AndroidX's FileProvider is not used here.
+     * Shares the last [SHARED_LOG_LINES] lines as text: a file would
+     * need a content provider, and AndroidX's FileProvider is not used
+     * here; an intent's extras have a size limit too. `adb pull` gets
+     * the whole log.
      */
     private fun shareLog() {
         val send = Intent(Intent.ACTION_SEND)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, "Alarm spike log")
-            .putExtra(Intent.EXTRA_TEXT, SpikeLog.readAll())
+            .putExtra(
+                Intent.EXTRA_TEXT,
+                SpikeLog.lastLines(SHARED_LOG_LINES),
+            )
         startActivity(Intent.createChooser(send, "Alarm spike log"))
     }
 
@@ -379,6 +395,7 @@ class MainActivity : Activity() {
 
     private companion object {
         const val SHOWN_LOG_LINES = 300
+        const val SHARED_LOG_LINES = 500
         const val REFRESH_MS = 2_000L
         const val NOTIFICATIONS_REQUEST = 1
     }

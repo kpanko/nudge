@@ -74,16 +74,35 @@ The events:
 - `swiped`: the notification was swiped away; a `scheduled`
   (re-notify) follows.
 - `tapped`: the notification's body was tapped.
+- `complete-ignored`, `snooze-ignored`, `schedule-ignored`,
+  `swiped-ignored`: an action for an alarm that is no longer stored
+  or no longer showing (for example a second tap); nothing was done.
+- `fired-unknown`: an alarm arrived for an id that is not stored
+  (for example after "Cancel all" raced with it); nothing is shown.
 - `boot-broadcast`, `restore`: the boot receiver ran
-  (`BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`).
+  (`BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`, or `QUICKBOOT_POWERON`,
+  which some manufacturers send after a fast reboot).
 - `re-registered`, `re-shown`: what the restore did with each alarm.
+- `cancelled`: removed by the page's "Cancel all".
+- `permission`: the answer to the notification permission request
+  (Android 13 and later).
+- `log-copied`: the page's "Copy log" put the log on the clipboard.
 - `note`: your own note from the page's "Add note" box.
 - `schedule-failed`, `error`: something went wrong; the details say
   what.
 
+While shared storage is not ready (early after a restart), lines go
+to a file in the app's private storage and are moved into
+`events.log`, in order, by the first line written after it is ready.
+The page, Copy log and Share log show those waiting lines too.
+Logging never stops the app: a line that cannot be saved at all
+still goes to logcat.
+
 To get the log off the phone: **Copy log** (clipboard) or **Share
 log** (email, Drive, ...; it is shared as text) on the page, or with
-adb:
+adb. Copy log and Share log take the last 500 lines only, as a very
+large text can fail to reach the clipboard or another app; `adb pull`
+gets the whole log:
 
 ```bash
 adb pull /sdcard/Android/data/nudge.spike.alarms/files/events.log
@@ -110,7 +129,7 @@ Tell the build where the SDK is, either with `ANDROID_HOME` or with a
 sdk.dir=C\:/Program Files (x86)/Android/android-sdk
 ```
 
-Then, from this folder, in Git Bash:
+Then, from the repository root, in Git Bash:
 
 ```bash
 cd spikes/AlarmSpikeKotlin
@@ -294,6 +313,12 @@ as notes).
   `deviceidle unforce`.
 - Installing a new APK over the old one logs `MY_PACKAGE_REPLACED`
   and a restore; that is the update path, not a reboot.
+- **Android 12 and 12L only:** if exact alarms are revoked for the
+  app (Settings > Apps > Special app access > Alarms & reminders),
+  Android drops its pending alarms, and allowing them again does not
+  bring them back. After allowing them again, press "Re-register
+  all". (Android 13 and later grant the permission this app uses at
+  install, and the user cannot revoke it.)
 
 ## Checked on an emulator only (2026-11-15)
 
@@ -331,10 +356,14 @@ inside it) and its timings say little about a phone.
 - Swiping the notification with `adb shell input swipe` did not
   dismiss it on the emulator, so only "Clear all" was checked as a
   swipe; a finger swipe on the phone is step 8.
-- Lines the app writes while shared storage is still being mounted,
-  right after the emulator's first boot, were lost (the first
-  `process-start`); later lines, including those of the boot
-  receiver after a reboot, were kept.
+- In the first build, lines written while shared storage was still
+  being mounted, right after the emulator's first boot, were lost
+  (the first `process-start`). The log now keeps such lines in
+  private storage and moves them over later: in a second run, the
+  `process-start`, `boot-broadcast` and `restore` lines written
+  before shared storage was readable all ended up in `events.log`,
+  in order, and after an `adb reboot` the boot receiver's lines
+  were there too.
 - The emulator's system process restarted twice on its own (a Wi-Fi
   crash in the emulator image); one of those restarts dropped a
   pending alarm, as a reboot would, before the boot receiver had run
