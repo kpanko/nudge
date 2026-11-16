@@ -118,6 +118,9 @@
                    value="@Words.TimeValue(item.DueTime)"
                    step="1"
                    aria-label="Due time" />
+            <input type="hidden"
+                   name="timeShown"
+                   value="@Words.TimeValue(item.DueTime)" />
             <button type="submit">Reschedule</button>
         </ActionForm>
         @if (item.DueDate is not null)
@@ -345,6 +348,13 @@
         if (!Words.TryDate(form["date"], out var date) || date is null)
         {
             return Invalid("Give the due date as yyyy-mm-dd.");
+        }
+
+        // A time left as it was shown keeps the stored time exactly,
+        // fractions of a second the field cannot show included.
+        if (form["time"] == form["timeShown"])
+        {
+            return Writes.RescheduleAsync(key, Id, date.Value, _item!.DueTime);
         }
 
         return Words.TryTime(form["time"], out var time)

@@ -744,6 +744,43 @@ public sealed class UiOperationTests : IAsyncLifetime
         Assert.Equal("09:30:45", due["time"]!.GetValue<string>());
     }
 
+    // A time the owner did not touch is not changed by the form, even
+    // with a fraction of a second the form cannot show.
+    [Fact]
+    public async Task Reschedule_OfTheDateOnly_LeavesAnyDueTimeAsItWas()
+    {
+        var id = await _host.CreateItemAsync(
+            """{"title":"Call on the dot","due":{"date":"2026-11-20","time":"09:30:45.123"}}""");
+        var before = JsonNode.Parse((await _host.ItemJsonAsync(id))!)!
+            ["due"]!["time"]!.GetValue<string>();
+        var page = await UiPage.OpenAsync(_host, $"/items/{id}");
+
+        AssertWebChange(
+            await page.SubmitAsync("due", ("date", "2026-11-21")),
+            "Reschedule item");
+
+        var due = JsonNode.Parse((await _host.ItemJsonAsync(id))!)!["due"]!;
+        Assert.Equal("2026-11-21", due["date"]!.GetValue<string>());
+        Assert.Equal(before, due["time"]!.GetValue<string>());
+        Assert.StartsWith("09:30:45.123", before, StringComparison.Ordinal);
+    }
+
+    // A time the owner does change is taken as typed.
+    [Fact]
+    public async Task Reschedule_WithANewTime_TakesIt()
+    {
+        var id = await _host.CreateItemAsync(
+            """{"title":"Call on the dot","due":{"date":"2026-11-20","time":"09:30:45.123"}}""");
+        var page = await UiPage.OpenAsync(_host, $"/items/{id}");
+
+        AssertWebChange(
+            await page.SubmitAsync("due", ("time", "10:15")),
+            "Reschedule item");
+
+        var due = JsonNode.Parse((await _host.ItemJsonAsync(id))!)!["due"]!;
+        Assert.Equal("10:15:00", due["time"]!.GetValue<string>());
+    }
+
     // A reminder's minutes count from the due time, or from midnight
     // when there is none, and the page says so.
     [Fact]
