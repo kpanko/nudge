@@ -37,12 +37,12 @@
      `m3-ui-shell-auth`, tip ca92d55.
      https://github.com/kpanko/nudge/pull/9
   2. #10, views and item operations, base `m3-ui-shell-auth`,
-     branch `m3-ui-views`, tip 6f4e30b. After #9 is merged, change
+     branch `m3-ui-views`, tip 19c4780. After #9 is merged, change
      #10's base to `main` (GitHub does it only when #9's branch is
      deleted, which this repository does not do, so check).
      https://github.com/kpanko/nudge/pull/10
   3. #11, Playwright smoke test in CI, base `m3-ui-views`, branch
-     `m3-ui-playwright`, tip 68cdc1b. After #10 is merged, change
+     `m3-ui-playwright`, tip 33c4863. After #10 is merged, change
      its base to `main`.
      https://github.com/kpanko/nudge/pull/11
   CI passes at all three tips. Each merge to main starts the gated
@@ -597,9 +597,9 @@ approve it.
 - What was and was not checked:
   - For the web UI (PRs #9, #10 and #11), on 2026-11-16:
     - `dotnet build` (warnings are errors) and `dotnet test` pass:
-      623 tests on #9's branch (97 core, 526 web), 676 on #10's
-      (97 core, 579 web), 677 on #11's with the browser test on
-      (97 core, 579 web, 1 browser).
+      623 tests on #9's branch (97 core, 526 web), 678 on #10's
+      (97 core, 581 web), 679 on #11's with the browser test on
+      (97 core, 581 web, 1 browser).
     - Through the real OpenID Connect handler, against a fake
       Google: the owner is accepted (address case ignored); another
       account, an unverified or missing address, a token for
@@ -617,14 +617,22 @@ approve it.
       HTML-encoded, and completing a repeating item advances it
       once.
     - The Chromium smoke test passes locally on Windows and in CI
-      (run 43932478398 at 68cdc1b: Passed 1, Skipped 0). It uses
+      (run 43979071913 at 33c4863: Passed 1, Skipped 0). It uses
       enhanced navigation and forms throughout, and fails if any
       step is a full page load (tried).
     - Three independent reviews (one per pull request); their
-      findings are fixed. CodeRabbit's findings on #9 and #10 are
-      fixed and listed in the pull request descriptions, not
-      answered on GitHub. CodeRabbit skipped #11 because its base
-      is not `main`.
+      findings are fixed. CodeRabbit reviewed all three pull
+      requests: one finding on #9 (fixed in ca92d55), five on #10
+      (fixed in 6f4e30b) and a follow-up there about fractions of a
+      second in due times (fixed in 19c4780), and one on #11 (fixed
+      in 33c4863). With the owner's go-ahead, every CodeRabbit
+      thread on #9, #10 and #11 was answered and resolved on
+      2026-11-16; each pull request description lists them under
+      "Review comments". One later CodeRabbit follow-up on #11 was
+      left unfixed on purpose: a disk-write failure while the smoke
+      test saves its failure artifacts can still replace the test's
+      own failure, which is not worth more code in a diagnostics
+      path (listed under known limits in #11).
     - Not checked: real Google sign-in end to end; the Docker image
       and the Fly deploy with these changes (forwarded headers, the
       keys in `/data/keys`); browsers other than Chromium; the UI
