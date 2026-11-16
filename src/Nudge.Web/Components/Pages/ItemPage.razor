@@ -115,7 +115,8 @@
                    required />
             <input type="time"
                    name="time"
-                   value="@Words.Time(item.DueTime)"
+                   value="@Words.TimeValue(item.DueTime)"
+                   step="1"
                    aria-label="Due time" />
             <button type="submit">Reschedule</button>
         </ActionForm>
@@ -184,7 +185,7 @@
         </ul>
         <ActionForm Name="add-reminder" Action="AddReminderAsync" Class="inline">
             <label>
-                Minutes from the start of the due day
+                Minutes from the due time (midnight if it has no time)
                 <input type="number" name="offsetMinutes" value="540" required />
             </label>
             <button type="submit">Add reminder</button>
@@ -259,7 +260,7 @@
 
         var minutes = (int)reminder.Offset!.Value.TotalMinutes;
         var fires = reminder.FireTime(_item!, Queries.Zone);
-        return $"{minutes} minutes from the start of the due day"
+        return $"{minutes} minutes from the due time"
             + (fires is { } f ? $" ({Words.Instant(f, Queries.Zone)})" : "");
     }
 

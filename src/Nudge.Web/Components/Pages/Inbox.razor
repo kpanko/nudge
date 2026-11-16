@@ -46,12 +46,17 @@ else
                         <option value="">No project</option>
                         @foreach (var project in _projects)
                         {
-                            <option value="@project.Id">@project.Name</option>
+                            <option value="@project.Id"
+                                    selected="@(project.Id == item.Project?.Id)">
+                                @project.Name
+                            </option>
                         }
                     </select>
                     <label>
                         Defer until
-                        <input type="date" name="deferUntil" />
+                        <input type="date"
+                               name="deferUntil"
+                               value="@Words.Date(item.DeferUntil)" />
                     </label>
                     <button type="submit">Process</button>
                 </ActionForm>

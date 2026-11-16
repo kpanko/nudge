@@ -112,6 +112,9 @@ public sealed class UiViewTests : IAsyncLifetime
 
         Assert.Equal(["Refund from the shop"], await TitlesAsync("/waiting"));
         Assert.Equal(["Learn the cello"], await TitlesAsync("/someday"));
+        Assert.Equal(["Refund from the shop"], await TitlesAsync("/waiting/"));
+        Assert.Equal(["Learn the cello"], await TitlesAsync("/someday/"));
+        Assert.Equal(["Learn the cello"], await TitlesAsync("/SOMEDAY"));
     }
 
     [Fact]

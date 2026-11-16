@@ -51,14 +51,15 @@ public sealed class WebWrites(
 
     /// <summary>
     /// What makes two sendings of a form with the same key the same
-    /// request: the page it was sent to and every field as sent
-    /// (the form's name, its values, where to go after), but not the
-    /// antiforgery token. Taken from the request alone, so that a
-    /// repeat can be recognised before the page is rendered; see
-    /// <see cref="WebUi.UseUiReplay"/>.
+    /// request: the address it was sent to, query included (the
+    /// notice's undo names its change there), and every field as
+    /// sent (the form's name, its values, where to go after), but
+    /// not the antiforgery token. Taken from the request alone, so
+    /// that a repeat can be recognised before the page is rendered;
+    /// see <see cref="WebUi.UseUiReplay"/>.
     /// </summary>
     public static string FormFingerprint(
-        PathString page,
+        HttpRequest request,
         IFormCollection form)
     {
         var fields = form
@@ -68,7 +69,7 @@ public sealed class WebWrites(
             .ToList();
         return WriteRunner.Fingerprint(
             "POST",
-            page.Value ?? "/",
+            (request.Path.Value ?? "/") + request.QueryString.Value,
             JsonSerializer.SerializeToUtf8Bytes(fields));
     }
 
@@ -388,7 +389,7 @@ public sealed class WebWrites(
         }
 
         var fingerprint = FormFingerprint(
-            http.Request.Path,
+            http.Request,
             http.Request.Form);
         await using var scope = scopes.CreateAsyncScope();
         var runner = scope.ServiceProvider.GetRequiredService<WriteRunner>();

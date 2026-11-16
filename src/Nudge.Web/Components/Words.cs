@@ -51,6 +51,16 @@ public static class Words
         return time?.ToString("HH:mm", CultureInfo.InvariantCulture) ?? "";
     }
 
+    /// <summary>A time as a form sends it back: HH:mm, or HH:mm:ss
+    /// when it has seconds, so that saving the form keeps them.
+    /// </summary>
+    public static string TimeValue(TimeOnly? time)
+    {
+        return time is { } t && (t.Second != 0 || t.Millisecond != 0)
+            ? t.ToString("HH:mm:ss", CultureInfo.InvariantCulture)
+            : Time(time);
+    }
+
     /// <summary>An instant in the owner's time zone.</summary>
     public static string Instant(
         DateTimeOffset instant,
