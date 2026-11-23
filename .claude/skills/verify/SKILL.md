@@ -42,8 +42,9 @@ nv_stop
 
 1. Finds a Python 3 with `sqlite3` by running it, so a broken shim is
    skipped. With none, it stops: database state would be unverified.
-2. Resolves the evidence home (links, junctions, case, repeated
-   slashes) and refuses the repository or `/data` before creating it.
+2. Resolves the evidence home and the full run path (links, junctions,
+   case, repeated slashes) and refuses the repository or `/data`
+   before creating either.
 3. Publishes `src/Nudge.Web` in Release to the run's own folder, under
    `env -i` with an allowlist that holds no application settings.
 4. Refuses unless the connection string is exactly this run's
@@ -86,7 +87,7 @@ paste between doctor and `nv_stop`.
 
 | Helper | Does |
 | --- | --- |
-| `nv_api LABEL METHOD PATH [JSON]` | Calls the app, saves evidence; sets `$NV_STATUS`, `$NV_LOCATION`, `$NV_BODY` |
+| `nv_api LABEL METHOD PATH [JSON]` | One call, 30 s limit, no retry; sets `$NV_STATUS`, `$NV_LOCATION`, `$NV_BODY` |
 | `NV_ANON=1 nv_api ...` | The same with no token |
 | `NV_HEADERS=(-H "K: v")` | Adds headers to the next call only |
 | `nv_get a.b.0.c` | One value from the last answer, or `<nv_get failed: ...>` |
@@ -98,6 +99,9 @@ paste between doctor and `nv_stop`.
 | `nv_expect_match LABEL REGEX ACTUAL` | The same, for a value known only by shape |
 | `nv_unverified LABEL REASON` | Records something not exercised |
 | `nv_ui_smoke` | Runs the signed-in browser test on the test host |
+
+A call that times out or is cut off is a FAIL. Its partial answer is
+kept in the evidence, and `nv_get` cannot read it.
 
 Proof standards:
 
@@ -141,8 +145,8 @@ FAIL and UNVERIFIED line.
 
 ## Cleanup
 
-`nv_stop` runs on exit even after a failure. It stops the job, then
-looks for what is left **by this run's dll path on the command line**,
+`nv_stop` runs on exit even after a failure. It stops the job, forcing
+it by its own PID if it ignores the request, then looks for what is left **by this run's dll path on the command line**,
 because on Windows killing the shell's job can leave `dotnet.exe`
 running. It force-stops only those PIDs and never kills by process
 name. It then confirms that no such process remains and the port is
@@ -157,7 +161,9 @@ If a shell died mid-run, stop what it left:
 nv_recover ~/.nudge-verify/runs/<run>
 ```
 
-A run folder that still has `state.env` was not cleaned up.
+A run folder that still has `state.env` was not cleaned up, including
+when its scratch files could not be deleted. `nv_recover` finishes the
+job, but still exits non-zero if that run recorded a FAIL.
 
 ## What this cannot prove
 

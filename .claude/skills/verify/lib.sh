@@ -10,6 +10,8 @@
 NV_SKILL_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 NV_HOME=${NUDGE_VERIFY_HOME:-$HOME/.nudge-verify}
 NV_TIME_ZONE=Etc/UTC
+NV_HTTP_TIMEOUT=30
+NV_HEALTH_DEADLINE=60
 NV_STOPPED=1
 NV_HEADERS=()
 
@@ -250,13 +252,15 @@ _nv_is_under() {
     return 1
 }
 
-# Decides before anything is created. Sets NV_HOME to the real path.
-_nv_guard_home() {
+# Refuses a path that is, or resolves into, the repository or /data.
+# Creates nothing. Sets NV_CHECKED to the real path.
+_nv_check_protected() {
     local lexical real repo common top
-    lexical=$(_nv_lexical "$NV_HOME") \
-        || { _nv_die "evidence home is not a usable path"; return 1; }
-    real=$(_nv_canonical "$NV_HOME") \
-        || { _nv_die "evidence home cannot be resolved"; return 1; }
+    NV_CHECKED=
+    lexical=$(_nv_lexical "$1") \
+        || { _nv_die "evidence path is not usable"; return 1; }
+    real=$(_nv_canonical "$1") \
+        || { _nv_die "evidence path cannot be resolved"; return 1; }
     repo=$(_nv_repo) || return 1
     repo=$(_nv_canonical "$repo") || return 1
     common=$(git -C "$NV_SKILL_DIR" rev-parse --path-format=absolute \
@@ -264,16 +268,22 @@ _nv_guard_home() {
     common=$(_nv_canonical "${common%/.git}") || return 1
     for top in "$repo" "$common"; do
         if _nv_is_under "$real" "$top"; then
-            _nv_die "evidence home is inside the repository"
+            _nv_die "evidence path is inside the repository"
             return 1
         fi
     done
     if _nv_is_under "$lexical" /data || _nv_is_under "$real" /data; then
-        _nv_die "evidence home is under /data"
+        _nv_die "evidence path is under /data"
         return 1
     fi
-    mkdir -p -- "$real" || return 1
-    NV_HOME=$real
+    NV_CHECKED=$real
+}
+
+# Decides before anything is created. Sets NV_HOME to the real path.
+_nv_guard_home() {
+    _nv_check_protected "$NV_HOME" || return 1
+    mkdir -p -- "$NV_CHECKED" || return 1
+    NV_HOME=$NV_CHECKED
 }
 
 # What the build was made from: tracked and new files under src, by
@@ -501,7 +511,13 @@ nv_launch() {
         return 1
     fi
     stamp=$(date -u +%Y%m%dT%H%M%SZ)-$$
-    NV_RUN=$NV_HOME/runs/$stamp
+    # The whole run path, since runs/ under a safe home can be a link.
+    if ! _nv_check_protected "$NV_HOME/runs/$stamp"; then
+        NV_RUN_RC=1
+        NV_SHELL_FAILED=1
+        return 1
+    fi
+    NV_RUN=$NV_CHECKED
     NV_SCRATCH=$NV_RUN/scratch
     NV_EVIDENCE=$NV_RUN/evidence
     NV_APP=$NV_RUN/app
@@ -590,9 +606,10 @@ nv_launch() {
     NV_BASE=http://127.0.0.1:$NV_PORT
     _nv_save_state
 
-    local healthy=0
-    for i in $(seq 1 60); do
-        if curl -fsS -o /dev/null "$NV_BASE/healthz" 2> /dev/null; then
+    local healthy=0 deadline=$((SECONDS + NV_HEALTH_DEADLINE))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        if curl -fsS --connect-timeout 2 --max-time 5 -o /dev/null \
+            "$NV_BASE/healthz" 2> /dev/null; then
             healthy=1
             break
         fi
@@ -690,7 +707,7 @@ nv_doctor() {
 # to the next call only.
 nv_api() {
     local label=$1 method=$2 path=${3#"$NV_BASE"} body=${4-}
-    local head=$NV_SCRATCH/last.headers args
+    local head=$NV_SCRATCH/last.headers args rc
     NV_BODY=$NV_SCRATCH/last.body
     # Never left over from the call before: a failed call reads as
     # empty, not as the previous answer.
@@ -705,7 +722,9 @@ nv_api() {
         return 1
     fi
     _nv_next "$label"
-    args=(-sS -X "$method" -o "$(_nv_native "$NV_BODY")"
+    # A deadline, and never --retry: a write must not be sent twice.
+    args=(-sS --connect-timeout 5 --max-time "$NV_HTTP_TIMEOUT"
+        -X "$method" -o "$(_nv_native "$NV_BODY")"
         -D "$(_nv_native "$head")" -w '%{http_code}')
     args+=("${NV_HEADERS[@]}")
     if [ -n "$body" ]; then
@@ -715,10 +734,13 @@ nv_api() {
     fi
     if [ "${NV_ANON:-0}" = 1 ]; then
         NV_STATUS=$(curl "${args[@]}" "$NV_BASE$path")
+        rc=$?
     else
         # By config on stdin: the token is never on a command line.
         NV_STATUS=$(printf 'header = "Authorization: Bearer %s"\n' \
-            "$NV_TOKEN" | curl -K - "${args[@]}" "$NV_BASE$path")
+            "$NV_TOKEN" | curl -K - "${args[@]}" "$NV_BASE$path"
+            exit "${PIPESTATUS[1]}")
+        rc=$?
     fi
     NV_LOCATION=$(tr -d '\r' < "$head" \
         | sed -n 's/^[Ll]ocation: //p' | head -1)
@@ -728,10 +750,23 @@ nv_api() {
         [ -n "$body" ] && printf '> %s\n' "$body"
         printf '< %s\n' "$NV_STATUS"
         [ -n "$NV_LOCATION" ] && printf '< Location: %s\n' "$NV_LOCATION"
+        [ "$rc" = 0 ] \
+            || printf '! curl exit %s: INCOMPLETE, partial answer below\n' "$rc"
         cat "$NV_BODY"
         printf '\n'
     } > "$NV_STEP_FILE"
     NV_HEADERS=()
+    if [ "$rc" != 0 ]; then
+        # The partial answer is in the evidence. Nothing may read it.
+        NV_STATUS=curl-failed-$rc
+        NV_LOCATION=
+        : > "$NV_BODY"
+        : > "$head"
+        local why="curl exit $rc"
+        [ "$rc" = 28 ] && why="timed out after ${NV_HTTP_TIMEOUT}s"
+        _nv_record FAIL "$label: request did not complete" complete "$why"
+        return 1
+    fi
 }
 
 # nv_get a.b.0.c: one value from the last answer. Prints a JSON null
@@ -864,19 +899,57 @@ _nv_on_exit() {
     exit "$rc"
 }
 
+# Whether this shell's job is still running. An exited job that has
+# not been reaped yet (a zombie) does not count.
+_nv_job_alive() {
+    local stat
+    kill -0 "$1" 2> /dev/null || return 1
+    if [ -r "/proc/$1/stat" ]; then
+        stat=$(cat "/proc/$1/stat" 2> /dev/null) || return 1
+        stat=${stat##*) }
+        [ "${stat%% *}" != Z ] || return 1
+    fi
+    return 0
+}
+
+# Polls for up to $2 quarter-seconds; true once the job has exited.
+_nv_job_gone() {
+    local i
+    for i in $(seq 1 "$2"); do
+        _nv_job_alive "$1" || return 0
+        sleep 0.25
+    done
+    ! _nv_job_alive "$1"
+}
+
+# Stops the job this shell started, by its own PID: this does not
+# depend on the command-line lookup. Never waits on a live process.
+_nv_stop_job() {
+    local pid=$1 now
+    kill "$pid" 2> /dev/null
+    if ! _nv_job_gone "$pid" 20; then
+        if [ "$NV_OS" = windows ] && [ -n "${NV_WINPID:-}" ]; then
+            now=$(cat "/proc/$pid/winpid" 2> /dev/null)
+            if [ "$now" = "$NV_WINPID" ]; then
+                MSYS_NO_PATHCONV=1 taskkill /PID "$NV_WINPID" /F \
+                    > /dev/null 2>&1
+            fi
+        fi
+        kill -KILL "$pid" 2> /dev/null
+        _nv_job_gone "$pid" 20 || return 1
+    fi
+    wait "$pid" 2> /dev/null
+    return 0
+}
+
 # Returns non-zero if the run has any FAIL, also when called again.
 nv_stop() {
     [ "${NV_STOPPED:-1}" = 1 ] && return "${NV_RUN_RC:-0}"
     NV_STOPPED=1
 
-    local i left owner
+    local i left owner job_left=
     if [ -n "${NV_PID:-}" ]; then
-        kill "$NV_PID" 2> /dev/null
-        for i in $(seq 1 20); do
-            kill -0 "$NV_PID" 2> /dev/null || break
-            sleep 0.25
-        done
-        wait "$NV_PID" 2> /dev/null
+        _nv_stop_job "$NV_PID" || job_left="job-$NV_PID"
     fi
 
     # Only PIDs whose command line names this run's dll are touched.
@@ -895,6 +968,7 @@ nv_stop() {
         [ -z "$left" ] && break
         sleep 0.25
     done
+    left=${left:-$job_left}
 
     [ -f "${NV_LOG:-}" ] && cp "$NV_LOG" "$NV_EVIDENCE/app.log"
     if [ -n "$left" ]; then
@@ -919,11 +993,12 @@ nv_stop() {
             sleep 0.25
         done
         if [ -e "$NV_SCRATCH" ] || [ -e "$NV_APP" ]; then
+            # state.env stays, so that nv_recover can finish the job.
             _nv_record FAIL "cleanup: scratch removed" removed "still there"
         else
             _nv_record PASS "cleanup: scratch removed" removed removed
+            rm -f "$NV_RUN/state.env"
         fi
-        rm -f "$NV_RUN/state.env"
     fi
 
     _nv_scrub
