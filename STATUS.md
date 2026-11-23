@@ -1,7 +1,8 @@
 # Status
 
-**Last updated:** 2026-11-16
-**Current milestone:** M2 Alarm spike; M3 Web UI in review
+**Last updated:** 2026-11-22
+**Current milestone:** M2 Alarm spike; M3 Web UI merged, final check
+left
 
 ## In Progress
 - M1. All six tasks are on main: PR #6 was merged on 2026-11-15
@@ -32,24 +33,22 @@
   then. See "Recently Completed" and "Key Context" for what the
   spike is and what was checked.
 - M3, the web UI: built on 2026-11-15 and 2026-11-16 as three
-  stacked pull requests, none merged. Merge them in this order:
-  1. #9, UI shell and Google sign-in, base `main`, branch
-     `m3-ui-shell-auth`, tip ca92d55.
-     https://github.com/kpanko/nudge/pull/9
-  2. #10, views and item operations, base `m3-ui-shell-auth`,
-     branch `m3-ui-views`, tip 19c4780. After #9 is merged, change
-     #10's base to `main` (GitHub does it only when #9's branch is
-     deleted, which this repository does not do, so check).
-     https://github.com/kpanko/nudge/pull/10
-  3. #11, Playwright smoke test in CI, base `m3-ui-views`, branch
-     `m3-ui-playwright`, tip 33c4863. After #10 is merged, change
-     its base to `main`.
-     https://github.com/kpanko/nudge/pull/11
-  CI passes at all three tips. Each merge to main starts the gated
-  deploy job. In MILESTONES.md (on the branches) M3 is
-  `in-progress` with every task and every criterion ticked except
-  "Sign in with Google; any other account is rejected", which waits
-  for a real sign-in (see "Must be done by hand"). Choices 69 to 102
+  stacked pull requests, #9, #10 and #11, all merged on 2026-11-22.
+  #9 went to `main`, but #10 and #11 went into `m3-ui-shell-auth`,
+  so the first deploy had only the sign-in shell. At the owner's
+  request that branch was merged directly into `main` (0b0e78c),
+  without another pull request. The build was clean and 678 tests
+  passed locally on the merge; the browser test runs in CI. The
+  repository now deletes branches after a merge.
+  https://github.com/kpanko/nudge/pull/9
+  https://github.com/kpanko/nudge/pull/10
+  https://github.com/kpanko/nudge/pull/11
+  The merge to main starts the gated deploy job. In MILESTONES.md
+  M3 is `in-progress` with every task and every criterion ticked
+  except "Sign in with Google; any other account is rejected".
+  The owner's sign-in reached the signed-in page on the deployed
+  app; refusing another account is still to be tried (see "Must be
+  done by hand"). Choices 69 to 102
   under "Blockers / Open Questions" and the DECISIONS.md entries of
   2026-11-16 explain the design; each pull request description has
   what was checked and its review comments.
@@ -136,8 +135,8 @@ approve it.
   3. Nothing to set for the Data Protection keys:
      `Nudge__DataProtection__KeysPath = "/data/keys"` is in the
      `[env]` section of `fly.toml` in #9.
-  4. Merge #9, #10 and #11 in order and approve the deploys.
-  5. Sign in once at https://nudge-gtd.fly.dev/ with the owner's
+  4. Approve the deploy of the merge to main (0b0e78c or later).
+  5. Sign in at https://nudge-gtd.fly.dev/ with the owner's
      account, try another Google account and see it refused, then
      tick "Sign in with Google; any other account is rejected" in
      MILESTONES.md and mark M3 `done`.
@@ -222,13 +221,13 @@ approve it.
    APK and run the checklist on the phone, filling in the results
    table in the spike's README. When the three open M2 criteria
    pass, tick them and the second task, and mark M2 `done`.
-5. M3, the web UI: review and merge #9, #10 and #11 in that order
-   (see "In Progress"), approving each deploy. Its components are
-   the web UI's own; there is no shared component library. It
-   builds on the M1 design in #2 to #6, which the owner has not
-   reviewed yet, and it changed M1 code: `WriteRunner` is split
-   into a core and the API's adapter (#10). Then do the M3 steps
-   under "Must be done by hand" and tick the sign-in criterion.
+5. M3, the web UI: approve the deploy of main (see "In Progress").
+   Its components are the web UI's own; there is no shared
+   component library. It builds on the M1 design in #2 to #6, which
+   the owner has not reviewed yet, and it changed M1 code:
+   `WriteRunner` is split into a core and the API's adapter (#10).
+   Then do the M3 steps under "Must be done by hand" and tick the
+   sign-in criterion.
 
 ## Blockers / Open Questions
 - No blockers.
