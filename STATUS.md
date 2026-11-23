@@ -18,13 +18,19 @@
   this file, in the six pull request descriptions, and in the
   DECISIONS.md entries of those three dates.
 - M2, the Kotlin alarm spike: built, PR #8 is open and not merged
-  (branch `m2-kotlin-alarm-spike`, four commits; CI passes at
-  the third, check it at the fourth, 017da13).
+  (branch `m2-kotlin-alarm-spike`). On 2026-11-22 main was merged
+  into it (b6a2b91). Only DECISIONS.md conflicted, and both sides
+  were kept. CI passes at b6a2b91 and the PR merges cleanly. The
+  release APK builds from it.
   https://github.com/kpanko/nudge/pull/8
-  CodeRabbit reviewed it and left three minor comments; all three
-  are fixed in 017da13 and answered on the pull request (see 67
-  and 68 under "Blockers / Open Questions"). The owner said on
-  2026-11-15 they will review the PR before it is merged.
+  CodeRabbit left three minor comments, fixed in 017da13 and
+  answered on the pull request (see 67 and 68 under "Blockers /
+  Open Questions"). One thread is still open: another app could
+  send `QUICKBOOT_POWERON` to the exported boot receiver, causing a
+  false boot log line and a restore. This was not tested. The owner
+  has to accept that for a throwaway spike or ask for a fix. The
+  owner said on 2026-11-15 they will review the PR before it is
+  merged; it has not been approved yet.
   The first M2 task is ticked in MILESTONES.md on that branch, not
   on main yet. The second task is the owner's: sideload the APK
   and run the checklist in `spikes/AlarmSpikeKotlin/README.md` on
