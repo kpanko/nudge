@@ -297,6 +297,9 @@
     private IReadOnlyList<Project> _projects = [];
     private IReadOnlyList<Context> _contexts = [];
 
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
     [Parameter]
     public Guid Id { get; set; }
 
@@ -305,7 +308,7 @@
         _item = await Queries.ItemAsync(Id);
         if (_item is null)
         {
-            Navigation.NotFound();
+            QuickAdd.PageIsGone(HttpContext, Navigation);
             return;
         }
 

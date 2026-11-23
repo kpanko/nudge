@@ -153,6 +153,40 @@ a {
     font-weight: 600;
 }
 
+/* Capture from any view. A refusal takes a row of its own. */
+.quick-add {
+    display: flex;
+    flex: 0 1 14rem;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    min-width: 0;
+}
+
+.quick-add input {
+    flex: 1 1 0;
+    width: auto;
+}
+
+.quick-add button {
+    flex: none;
+}
+
+/* Between phone and desktop, leave the view links more room. */
+@media (max-width: 60rem) {
+    .quick-add {
+        flex-basis: 10rem;
+    }
+}
+
+.top:has(.quick-add .error) {
+    flex-wrap: wrap;
+}
+
+.top:has(.quick-add .error) .quick-add {
+    flex-basis: 100%;
+    order: 1;
+}
+
 /* Controls */
 button,
 input,
@@ -619,16 +653,28 @@ html:has(.notice) {
 
     .top {
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         grid-template-areas:
-            "brand out"
-            "views views";
-        gap: 0;
+            "brand add out"
+            "views views views";
+        gap: 0 var(--space-2);
+        align-items: center;
         padding: var(--space-1) var(--space-4) 0;
+    }
+
+    .top:has(.quick-add .error) {
+        grid-template-areas:
+            "brand . out"
+            "add add add"
+            "views views views";
     }
 
     .brand {
         grid-area: brand;
+    }
+
+    .quick-add {
+        grid-area: add;
     }
 
     .sign-out {

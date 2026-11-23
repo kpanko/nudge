@@ -51,6 +51,9 @@
     private IReadOnlyList<Project> _children = [];
     private IReadOnlyList<Item> _items = [];
 
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
     [Parameter]
     public Guid Id { get; set; }
 
@@ -59,7 +62,7 @@
         _project = await Queries.ProjectAsync(Id);
         if (_project is null)
         {
-            Navigation.NotFound();
+            QuickAdd.PageIsGone(HttpContext, Navigation);
             return;
         }
 

@@ -1,0 +1,67 @@
+@inject WebWrites Writes
+
+@* Capture from any view: the same form and write as the inbox's, and
+   back to this page with the notice. Never autofocused, so that a
+   phone does not open its keyboard on every navigation. A refused
+   title stays in the field, to be corrected. *@
+<ActionForm Name="@FormName" Action="CaptureAsync" Class="quick-add">
+    <input type="text"
+           name="title"
+           required
+           autocomplete="off"
+           aria-label="Capture to inbox"
+           placeholder="Capture..."
+           value="@_refused" />
+    <button type="submit" aria-label="Add to inbox">Add</button>
+</ActionForm>
+
+@code {
+    private const string FormName = "quick-capture";
+
+    private static readonly object GoneKey = new();
+
+    private string? _refused;
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>
+    /// For a page whose item or project does not exist: the not-found
+    /// page, unless this request is a capture sent from when it did.
+    /// Not-found would turn that capture's redirect into a 404, so the
+    /// page stays empty, the capture is kept, and the browser goes to
+    /// the inbox, where the notice can offer Undo.
+    /// </summary>
+    public static void PageIsGone(
+        HttpContext? context,
+        NavigationManager navigation)
+    {
+        if (context is not null
+            && HttpMethods.IsPost(context.Request.Method)
+            && context.Request.HasFormContentType
+            && context.Request.Form["_handler"] == FormName)
+        {
+            context.Items[GoneKey] = true;
+            return;
+        }
+
+        navigation.NotFound();
+    }
+
+    private async Task<WebWriteResult> CaptureAsync(
+        IFormCollection form,
+        string key)
+    {
+        var title = form["title"].ToString();
+        var result = await Writes.CaptureAsync(key, title.Trim());
+        if (result.Error is not null)
+        {
+            _refused = title;
+            return result;
+        }
+
+        return HttpContext!.Items.ContainsKey(GoneKey)
+            ? result with { Then = "/inbox" }
+            : result;
+    }
+}
