@@ -35,6 +35,12 @@ public static class OwnerAuthentication
     public const string EmailClaim = "email";
 
     public const string SignInPath = "/signin";
+
+    /// <summary>Signing in with Google's account picker, for when
+    /// the owner may need a different account from the last.</summary>
+    public const string ChooseAccountPath =
+        SignInPath + "?" + ChooseAccountFlag + "=" + ChooseAccountOn;
+
     public const string SignOutPath = "/signout";
     public const string CallbackPath = "/signin-google";
     public const string AccessDeniedPath = "/access-denied";
@@ -42,6 +48,9 @@ public static class OwnerAuthentication
     public const string SignedOutPath = "/signed-out";
 
     private const string GoogleAuthority = "https://accounts.google.com";
+    private const string ChooseAccountFlag = "chooseAccount";
+    private const string ChooseAccountOn = "1";
+    private const string SelectAccountPrompt = "select_account";
 
     /// <summary>The issuers Google's id tokens may name.</summary>
     public static readonly IReadOnlyList<string> GoogleIssuers =
@@ -157,9 +166,18 @@ public static class OwnerAuthentication
             return Results.LocalRedirect(target);
         }
 
-        return Results.Challenge(
-            new AuthenticationProperties { RedirectUri = target },
-            [GoogleScheme]);
+        // The flag only switches on the fixed prompt: its value, and
+        // anything else in the query, never reaches Google.
+        var properties = new OpenIdConnectChallengeProperties
+        {
+            RedirectUri = target,
+        };
+        if (http.Request.Query[ChooseAccountFlag] == ChooseAccountOn)
+        {
+            properties.Prompt = SelectAccountPrompt;
+        }
+
+        return Results.Challenge(properties, [GoogleScheme]);
     }
 
     private static async Task<IResult> SignOutAsync(
