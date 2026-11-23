@@ -15,7 +15,10 @@
     @if (item.CompletedAt is { } completed)
     {
         <p class="done">
-            Completed @Words.Instant(completed, Queries.Zone). Undo that
+            Completed @Plain.Instant(
+                completed,
+                Queries.Zone,
+                Queries.Today()). Undo that
             change on the <a href="/changes">changes</a> page to reopen it.
         </p>
     }
@@ -28,7 +31,7 @@
             <button type="submit" class="complete">
                 Complete@(item.Recurrence is null
                     ? ""
-                    : $" the occurrence of {Words.Date(item.OccurrenceDate)}")
+                    : $" the occurrence of {OccurrenceWords(item)}")
             </button>
         </ActionForm>
     }
@@ -133,15 +136,47 @@
 
     <section class="group">
         <h2>Repeat</h2>
+        @{
+            var repeatDay = item.DueDate ?? Queries.Today();
+            var selectedRepeat = RepeatPresets.Selected(
+                item.Recurrence?.Rule,
+                repeatDay);
+        }
         <ActionForm Name="repeat" Action="RepeatAsync" Class="fields">
             <label>
-                Rule (RRULE)
-                <input type="text"
-                       name="rule"
-                       value="@(item.Recurrence?.Rule.ToString())"
-                       placeholder="FREQ=WEEKLY;BYDAY=FR"
-                       required />
+                How often
+                <select name="preset">
+                    @if (selectedRepeat.Length == 0)
+                    {
+                        <option value="" selected>Choose how often</option>
+                    }
+                    @foreach (var choice in RepeatPresets.For(repeatDay))
+                    {
+                        <option value="@choice.Key"
+                                selected="@(choice.Key == selectedRepeat)">
+                            @choice.Label
+                        </option>
+                    }
+                    <option value="@RepeatPresets.Custom"
+                            selected="@(selectedRepeat == RepeatPresets.Custom)">
+                        Custom
+                    </option>
+                </select>
             </label>
+            <details class="organize"
+                     open="@(selectedRepeat == RepeatPresets.Custom)">
+                <summary>Custom rule</summary>
+                <label>
+                    Rule (RRULE), used when How often is Custom
+                    <input type="text"
+                           name="rule"
+                           value="@(item.Recurrence?.Rule.ToString())"
+                           placeholder="FREQ=WEEKLY;BYDAY=FR" />
+                </label>
+            </details>
+            <input type="hidden"
+                   name="ruleShown"
+                   value="@(item.Recurrence?.Rule.ToString())" />
             <label>
                 Mode
                 <select name="mode">
@@ -190,10 +225,30 @@
                     Action="AddReminderAsync"
                     Class="field-row">
             <label>
-                Minutes from the due time (midnight if it has no time)
-                <input type="number" name="offsetMinutes" value="540" required />
+                When
+                <select name="reminder">
+                    @foreach (var choice in ReminderPresets.For(item.DueTime))
+                    {
+                        <option value="@choice.Key">@choice.Label</option>
+                    }
+                    <option value="@ReminderPresets.Custom">Custom</option>
+                </select>
             </label>
+            <details class="organize">
+                <summary>Custom minutes</summary>
+                <label>
+                    Minutes from the due time (midnight if it has no time;
+                    negative is before), used when When is Custom
+                    <input type="number" name="offsetMinutes" />
+                </label>
+            </details>
             <button type="submit">Add reminder</button>
+            <span class="hint">
+                @(item.DueDate is null
+                    ? "A reminder fires once the item has a due date."
+                    : "A reminder keeps its distance from the due time"
+                        + " if the item moves.")
+            </span>
         </ActionForm>
     </section>
 
@@ -262,13 +317,21 @@
     {
         if (reminder.At is { } at)
         {
-            return "At " + Words.Instant(at, Queries.Zone);
+            return "At " + Plain.Instant(at, Queries.Zone, Queries.Today());
         }
 
-        var minutes = (int)reminder.Offset!.Value.TotalMinutes;
         var fires = reminder.FireTime(_item!, Queries.Zone);
-        return $"{minutes} minutes from the due time"
-            + (fires is { } f ? $" ({Words.Instant(f, Queries.Zone)})" : "");
+        return Plain.ReminderOffset(reminder.Offset!.Value, _item!.DueTime)
+            + (fires is { } f
+                ? $" ({Plain.Instant(f, Queries.Zone, Queries.Today())})"
+                : "");
+    }
+
+    private string OccurrenceWords(Item item)
+    {
+        return item.OccurrenceDate is { } date
+            ? Plain.Absolute(date, Queries.Today())
+            : "";
     }
 
     private static string Occurrence(Item item)
@@ -383,12 +446,13 @@
             return Invalid("Choose a mode, and give the start as a date.");
         }
 
-        return Writes.RepeatAsync(
-            key,
-            Id,
-            form["rule"].ToString().Trim(),
-            mode,
-            start);
+        var chosen = RepeatPresets.Resolve(
+            form["preset"],
+            form["rule"],
+            form["ruleShown"]);
+        return chosen.Value is { } rule
+            ? Writes.RepeatAsync(key, Id, rule, mode, start)
+            : Invalid(chosen.Error!);
     }
 
     private Task<WebWriteResult> StopRepeatingAsync(
@@ -402,13 +466,13 @@
         IFormCollection form,
         string key)
     {
-        return int.TryParse(
-                form["offsetMinutes"],
-                System.Globalization.NumberStyles.AllowLeadingSign,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var minutes)
+        var chosen = ReminderPresets.Resolve(
+            form["reminder"],
+            form["offsetMinutes"],
+            _item!.DueTime);
+        return chosen.Value is { } minutes
             ? Writes.AddReminderAsync(key, Id, minutes)
-            : Invalid("Give the minutes as a whole number.");
+            : Invalid(chosen.Error!);
     }
 
     private Task<WebWriteResult> AddContextAsync(

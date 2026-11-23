@@ -353,7 +353,8 @@ textarea {
     background: var(--surface-2);
 }
 
-.organize > .field-row {
+.organize > .field-row,
+.organize > label {
     padding-top: var(--space-2);
 }
 

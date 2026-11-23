@@ -241,6 +241,7 @@ public sealed class UiOperationTests : IAsyncLifetime
             id,
             "repeat",
             "Set repeat rule",
+            ("preset", RepeatPresets.Custom),
             ("rule", "FREQ=MONTHLY;BYMONTHDAY=-1"),
             ("mode", "FixedSchedule"));
 
@@ -258,6 +259,7 @@ public sealed class UiOperationTests : IAsyncLifetime
             id,
             "repeat",
             "Set repeat rule",
+            ("preset", RepeatPresets.Custom),
             ("rule", "FREQ=WEEKLY;INTERVAL=2;BYDAY=FR"));
 
         Assert.Equal(
@@ -341,6 +343,7 @@ public sealed class UiOperationTests : IAsyncLifetime
             id,
             "add-reminder",
             "Add reminder",
+            ("reminder", ReminderPresets.Custom),
             ("offsetMinutes", "-30"));
         Assert.Equal(
             -30,
@@ -802,7 +805,7 @@ public sealed class UiOperationTests : IAsyncLifetime
         Assert.Contains(
             page.Texts("section.group li"),
             text => text.StartsWith(
-                "-30 minutes from the due time (2026-11-20 13:30)",
+                "30 minutes before the due time (Fri 20 Nov 13:30)",
                 StringComparison.Ordinal));
         Assert.DoesNotContain("start of the due day", page.Html, StringComparison.Ordinal);
     }

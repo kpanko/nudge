@@ -22,7 +22,10 @@ else
         {
             <ItemRow Item="missed.Item" Scope="@missed.Reminder.Id.ToString("N")">
                 <span class="fact">
-                    reminded @Words.Instant(missed.FiredAt, Queries.Zone)
+                    reminded @Plain.Instant(
+                        missed.FiredAt,
+                        Queries.Zone,
+                        Queries.Today())
                 </span>
             </ItemRow>
         }

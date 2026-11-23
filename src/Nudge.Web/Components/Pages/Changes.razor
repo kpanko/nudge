@@ -19,7 +19,7 @@
         {
             <tr>
                 <td>@change.Id</td>
-                <td>@Words.Instant(change.At, Queries.Zone)</td>
+                <td>@Plain.Instant(change.At, Queries.Zone, Queries.Today())</td>
                 <td>
                     @change.Description
                     @if (change.Undoes is { } undone)

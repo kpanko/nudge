@@ -5,20 +5,19 @@
     @if (Item.DueDate is { } due)
     {
         <span class="@(due < Queries.Today() ? "fact overdue" : "fact")">
-            due @Words.Date(due) @Words.Time(Item.DueTime)
+            due @Plain.DayTime(due, Item.DueTime, Queries.Today())
         </span>
     }
-    @if (Queries.IsDeferred(Item))
+    @if (Queries.IsDeferred(Item) && Item.DeferUntil is { } until)
     {
         <span class="fact">
-            deferred until @Words.Date(Item.DeferUntil)
+            deferred until @Plain.Day(until, Queries.Today())
         </span>
     }
     @if (Item.Recurrence is { } recurrence)
     {
         <span class="fact">
-            repeats @recurrence.Rule.ToString()
-            (@Words.Mode(recurrence.Mode))
+            @Plain.Repeat(recurrence.Rule, recurrence.Mode)
         </span>
     }
     @if (Item.Project is { } project)
