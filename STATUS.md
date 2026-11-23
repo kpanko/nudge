@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-11-22
+**Last updated:** 2026-11-23
 **Current milestone:** M2 Alarm spike (M3 Web UI is `done`)
 
 ## In Progress
@@ -56,6 +56,40 @@
   under "Blockers / Open Questions" and the DECISIONS.md entries of
   2026-11-16 explain the design; each pull request description has
   what was checked and its review comments.
+- Web UI improvements, requested by the owner on 2026-11-23: six
+  stacked pull requests, all open and none merged. Each has base
+  `main` and contains the ones before it; its description links to
+  a diff of its own changes.
+  1. #13 phone layout and visual style
+     https://github.com/kpanko/nudge/pull/13
+  2. #14 confirmation and Undo stay on screen
+     https://github.com/kpanko/nudge/pull/14
+  3. #15 cleaner inbox, processing opens per row
+     https://github.com/kpanko/nudge/pull/15
+  4. #16 plain-language dates, repeats and reminders
+     https://github.com/kpanko/nudge/pull/16
+  5. #17 capture from every page
+     https://github.com/kpanko/nudge/pull/17
+  6. #18 Google's account picker on "sign in again"
+     https://github.com/kpanko/nudge/pull/18
+
+  To merge: use merge commits, not squash, because the later
+  branches contain the earlier commits. Merge in the order above,
+  or merge #18 alone to bring in all six with one deploy. Each
+  merge to `main` starts a deploy that waits for approval; approve
+  only the newest.
+  Checked: build and all tests passed locally on each branch,
+  browser tests included (908 tests on #18). CI passed on #13 to
+  #17 and was still running on #18 when this was written.
+  Not checked: a real phone (Chromium emulation only), Safari,
+  Firefox, a screen reader, or real Google's account picker. After
+  deploying, sign out, choose "Sign in again", and confirm Google
+  offers a choice of account.
+  Open review comment: CodeRabbit on #13 says the phone view of the
+  changes table hides its column headers from screen readers. It
+  is valid and minor, and is not fixed. A fix on #13 has to be
+  carried through the five later branches. CodeRabbit skipped #14
+  to #18.
 - Before the Kotlin spike: on 2026-11-15
   the owner decided the Android app will be Kotlin, offline-first
   (see DECISIONS.md under that date), so the spike was
