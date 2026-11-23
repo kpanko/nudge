@@ -80,6 +80,7 @@ app.UseUiNotFound();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
+app.UseUiReplay();
 
 app.MapGet(
     "/healthz",

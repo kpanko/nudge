@@ -1,0 +1,71 @@
+@page "/projects/{Id:guid}"
+@inject UiQueries Queries
+@inject NavigationManager Navigation
+
+@if (_project is not null)
+{
+    <PageTitle>@_project.Name - Nudge</PageTitle>
+
+    <h1>@_project.Name</h1>
+    @if (_project.Parent is { } parent)
+    {
+        <p>In <a href="@($"/projects/{parent.Id}")">@parent.Name</a></p>
+    }
+
+    @if (_children.Count > 0)
+    {
+        <h2>Projects in it</h2>
+        <ul class="projects">
+            @foreach (var child in _children)
+            {
+                <li><a href="@($"/projects/{child.Id}")">@child.Name</a></li>
+            }
+        </ul>
+    }
+
+    @foreach (var group in _items.GroupBy(i => i.State).OrderBy(g => g.Key))
+    {
+        <section class="group">
+            <h2>@Words.List(group.Key)</h2>
+            <ul class="items">
+                @foreach (var item in group)
+                {
+                    <ItemRow Item="item" />
+                }
+            </ul>
+        </section>
+    }
+
+    @if (_items.Count == 0)
+    {
+        <p class="empty">No open items in this project.</p>
+    }
+    else if (!_items.Any(i => i.State == ItemState.NextAction))
+    {
+        <p class="warn">This project has no next action.</p>
+    }
+}
+
+@code {
+    private Project? _project;
+    private IReadOnlyList<Project> _children = [];
+    private IReadOnlyList<Item> _items = [];
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _project = await Queries.ProjectAsync(Id);
+        if (_project is null)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        _children = (await Queries.ProjectsAsync())
+            .Where(p => p.Parent?.Id == Id)
+            .ToList();
+        _items = await Queries.ProjectItemsAsync(Id);
+    }
+}

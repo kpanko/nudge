@@ -1,0 +1,39 @@
+@page "/missed"
+@inject UiQueries Queries
+
+<PageTitle>Missed reminders - Nudge</PageTitle>
+
+<h1>Missed reminders</h1>
+<p class="hint">
+    Reminders whose time has passed on items that are still open.
+    For now this is every such reminder: until the phone app records
+    which reminders were seen, one stays here until the item is
+    completed or rescheduled, or the reminder is removed.
+</p>
+
+@if (_missed.Count == 0)
+{
+    <p class="empty">No missed reminders.</p>
+}
+else
+{
+    <ul class="items">
+        @foreach (var missed in _missed)
+        {
+            <ItemRow Item="missed.Item" Scope="@missed.Reminder.Id.ToString("N")">
+                <span class="fact">
+                    reminded @Words.Instant(missed.FiredAt, Queries.Zone)
+                </span>
+            </ItemRow>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<MissedReminder> _missed = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _missed = await Queries.MissedAsync();
+    }
+}

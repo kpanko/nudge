@@ -213,7 +213,7 @@ internal static class ItemEndpoints
         }
     }
 
-    private static async Task<WriteOutcome<ItemView>> CreateAsync(
+    internal static async Task<WriteOutcome<ItemView>> CreateAsync(
         Write<ItemCreate> write)
     {
         var body = write.Body;
@@ -290,7 +290,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Created(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> EditAsync(
+    internal static async Task<WriteOutcome<ItemView>> EditAsync(
         Write<ItemPatch> write)
     {
         var body = write.Body;
@@ -338,7 +338,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Ok(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> RescheduleAsync(
+    internal static async Task<WriteOutcome<ItemView>> RescheduleAsync(
         Write<DueInput> write)
     {
         var item = await FindAsync(write);
@@ -346,7 +346,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Ok(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> ClearDueAsync(
+    internal static async Task<WriteOutcome<ItemView>> ClearDueAsync(
         Write<NoBody> write)
     {
         var item = await FindAsync(write);
@@ -354,7 +354,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Ok(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> RepeatAsync(
+    internal static async Task<WriteOutcome<ItemView>> RepeatAsync(
         Write<RepeatInput> write)
     {
         var item = await FindAsync(write);
@@ -368,7 +368,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Ok(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> StopRepeatingAsync(
+    internal static async Task<WriteOutcome<ItemView>> StopRepeatingAsync(
         Write<NoBody> write)
     {
         var item = await FindAsync(write);
@@ -382,7 +382,7 @@ internal static class ItemEndpoints
     /// that is not the current one; so the same request sent twice,
     /// without an idempotency key, completes one occurrence, not two.
     /// </summary>
-    private static async Task<WriteOutcome<ItemView>> CompleteAsync(
+    internal static async Task<WriteOutcome<ItemView>> CompleteAsync(
         Write<CompleteRequest> write)
     {
         var item = await FindAsync(write);
@@ -421,7 +421,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Ok(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> DeleteAsync(
+    internal static async Task<WriteOutcome<ItemView>> DeleteAsync(
         Write<NoBody> write)
     {
         var item = await FindAsync(write);
@@ -429,7 +429,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Deleted<ItemView>();
     }
 
-    private static async Task<WriteOutcome<ItemView>> AddContextAsync(
+    internal static async Task<WriteOutcome<ItemView>> AddContextAsync(
         Write<NoBody> write)
     {
         var item = await FindAsync(write);
@@ -437,7 +437,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Ok(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> RemoveContextAsync(
+    internal static async Task<WriteOutcome<ItemView>> RemoveContextAsync(
         Write<NoBody> write)
     {
         var item = await FindAsync(write);
@@ -445,7 +445,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Ok(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> AddReminderAsync(
+    internal static async Task<WriteOutcome<ItemView>> AddReminderAsync(
         Write<ReminderInput> write)
     {
         var item = await FindAsync(write);
@@ -453,7 +453,7 @@ internal static class ItemEndpoints
         return WriteOutcome.Created(() => ItemView.Of(item));
     }
 
-    private static async Task<WriteOutcome<ItemView>> RemoveReminderAsync(
+    internal static async Task<WriteOutcome<ItemView>> RemoveReminderAsync(
         Write<NoBody> write)
     {
         var item = await FindAsync(write);

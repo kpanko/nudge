@@ -89,7 +89,7 @@ internal static class ProjectEndpoints
         }
     }
 
-    private static async Task<WriteOutcome<ProjectView>> CreateAsync(
+    internal static async Task<WriteOutcome<ProjectView>> CreateAsync(
         Write<ProjectCreate> write)
     {
         var projects = await write.Db.Projects.ToListAsync();

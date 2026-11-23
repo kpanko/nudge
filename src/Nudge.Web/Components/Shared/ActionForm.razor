@@ -1,0 +1,73 @@
+@inject NavigationManager Navigation
+
+@* One write from the web UI: a form with the antiforgery token and a
+   key made for this rendering, so that sending it twice is carried
+   out once (and answered the same, even once the form is gone; see
+   WebUi.UseUiReplay). A refusal is shown in the form; after a write
+   the browser goes back to the page (or to Then) with the change's
+   number, which the notice offers to undo. *@
+<form method="post"
+      @formname="@Name"
+      @onsubmit="SubmitAsync"
+      class="@Class"
+      data-enhance>
+    <AntiforgeryToken />
+    <input type="hidden" name="key" value="@_key" />
+    <input type="hidden" name="then" value="@Target" />
+    @ChildContent
+    @if (_error is not null)
+    {
+        <p class="error" role="alert">@_error</p>
+    }
+</form>
+
+@code {
+    private readonly string _key = WebWrites.NewKey();
+    private string? _error;
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>Unique on the page.</summary>
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = "";
+
+    /// <summary>The write, given the posted form and its key.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public Func<IFormCollection, string, Task<WebWriteResult>> Action
+    {
+        get;
+        set;
+    } = default!;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>Where to go after the write; this page if null.
+    /// </summary>
+    [Parameter]
+    public string? Then { get; set; }
+
+    private async Task SubmitAsync()
+    {
+        var form = HttpContext!.Request.Form;
+        var result = await Action(form, form["key"].ToString());
+        if (result.Error is { } error)
+        {
+            _error = error;
+            return;
+        }
+
+        Navigation.NavigateTo(WebWrites.Target(Target, result.ChangeId));
+    }
+
+    /// <summary>Where to go after the write: Then, or this page,
+    /// always a path on this site.</summary>
+    private string Target => WebWrites.Target(
+        Then ?? "/" + Navigation.ToBaseRelativePath(Navigation.Uri),
+        null);
+}

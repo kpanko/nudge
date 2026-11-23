@@ -1,0 +1,58 @@
+@page "/review"
+@inject UiQueries Queries
+
+<PageTitle>Weekly review - Nudge</PageTitle>
+
+<h1>Weekly review</h1>
+<p class="hint">
+    A checklist to go through; nothing here changes anything. Today
+    is @Words.Date(Queries.Today()).
+</p>
+
+@if (_review is not null)
+{
+    <section class="group">
+        <h2>Empty the inbox</h2>
+        <p>
+            <a href="/inbox">@_review.InboxCount
+                @(_review.InboxCount == 1 ? "item" : "items")
+                in the inbox</a>.
+        </p>
+    </section>
+
+    <section class="group">
+        <h2>Projects without a next action</h2>
+        @if (_review.ProjectsWithoutNextAction.Count == 0)
+        {
+            <p class="empty">Every project has one.</p>
+        }
+        <ul class="projects">
+            @foreach (var project in _review.ProjectsWithoutNextAction)
+            {
+                <li><a href="@($"/projects/{project.Id}")">@project.Name</a></li>
+            }
+        </ul>
+    </section>
+
+    <ReviewList Title="Overdue"
+                Items="_review.Overdue"
+                Empty="Nothing is overdue." />
+    <ReviewList Title="Due in the next seven days"
+                Items="_review.NextSevenDays"
+                Empty="Nothing is due this week." />
+    <ReviewList Title="Waiting for"
+                Items="_review.Waiting"
+                Empty="Waiting for nothing." />
+    <ReviewList Title="Someday/maybe"
+                Items="_review.Someday"
+                Empty="Nothing for someday." />
+}
+
+@code {
+    private Review? _review;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _review = await Queries.ReviewAsync();
+    }
+}
