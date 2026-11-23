@@ -1,8 +1,7 @@
 # Status
 
 **Last updated:** 2026-11-22
-**Current milestone:** M2 Alarm spike; M3 Web UI merged, final check
-left
+**Current milestone:** M2 Alarm spike (M3 Web UI is `done`)
 
 ## In Progress
 - M1. All six tasks are on main: PR #6 was merged on 2026-11-15
@@ -43,12 +42,11 @@ left
   https://github.com/kpanko/nudge/pull/9
   https://github.com/kpanko/nudge/pull/10
   https://github.com/kpanko/nudge/pull/11
-  The merge to main starts the gated deploy job. In MILESTONES.md
-  M3 is `in-progress` with every task and every criterion ticked
-  except "Sign in with Google; any other account is rejected".
-  The owner's sign-in reached the signed-in page on the deployed
-  app; refusing another account is still to be tried (see "Must be
-  done by hand"). Choices 69 to 102
+  The owner approved the deploy. M3 is `done` as of 2026-11-22: on
+  the deployed app the owner signed in with Google, then set
+  `Nudge__Owner__Email` to another address and was refused, then
+  restored it and signed in again. No second Google account was
+  used. Choices 69 to 102
   under "Blockers / Open Questions" and the DECISIONS.md entries of
   2026-11-16 explain the design; each pull request description has
   what was checked and its review comments.
@@ -115,7 +113,8 @@ approve it.
   stops one at once. Names are never reused, revoked ones included.
 - If only #5 is deployed, before #6, the API is open to anyone who
   can reach the app. Do not put real data in before #6 is deployed.
-- M3 sign-in. Until these are done the web UI stays locked ("Sign-in
+- M3 sign-in: all done on 2026-11-22; kept for a rebuild. Until
+  these are done the web UI stays locked ("Sign-in
   is not configured") and the API is unaffected:
   1. In Google Cloud Console, create an OAuth client of type "Web
      application" with the authorized redirect URI
@@ -135,11 +134,9 @@ approve it.
   3. Nothing to set for the Data Protection keys:
      `Nudge__DataProtection__KeysPath = "/data/keys"` is in the
      `[env]` section of `fly.toml` in #9.
-  4. Approve the deploy of the merge to main (0b0e78c or later).
+  4. Approve the deploy.
   5. Sign in at https://nudge-gtd.fly.dev/ with the owner's
-     account, try another Google account and see it refused, then
-     tick "Sign in with Google; any other account is rejected" in
-     MILESTONES.md and mark M3 `done`.
+     account, and check that another account is refused.
 
 ## Recently Completed
 - Kotlin alarm spike (PR #8, open), the first task of M2.
@@ -221,13 +218,10 @@ approve it.
    APK and run the checklist on the phone, filling in the results
    table in the spike's README. When the three open M2 criteria
    pass, tick them and the second task, and mark M2 `done`.
-5. M3, the web UI: approve the deploy of main (see "In Progress").
-   Its components are the web UI's own; there is no shared
-   component library. It builds on the M1 design in #2 to #6, which
-   the owner has not reviewed yet, and it changed M1 code:
-   `WriteRunner` is split into a core and the API's adapter (#10).
-   Then do the M3 steps under "Must be done by hand" and tick the
-   sign-in criterion.
+5. M4, the Todoist import, once the restore in step 2 has been
+   rehearsed. M3 builds on the M1 design in #2 to #6, which the
+   owner has not reviewed yet, and it changed M1 code: `WriteRunner`
+   is split into a core and the API's adapter (#10).
 
 ## Blockers / Open Questions
 - No blockers.
@@ -632,11 +626,14 @@ approve it.
       test saves its failure artifacts can still replace the test's
       own failure, which is not worth more code in a diagnostics
       path (listed under known limits in #11).
-    - Not checked: real Google sign-in end to end; the Docker image
-      and the Fly deploy with these changes (forwarded headers, the
-      keys in `/data/keys`); browsers other than Chromium; the UI
-      on a phone. M3 builds on the M1 design the owner has not
-      reviewed, and the `WriteRunner` split changed M1 code.
+    - Checked on the deployed app on 2026-11-22: real Google
+      sign-in, and refusal when the signed-in account is not the
+      configured owner.
+    - Not checked: a cookie surviving a restart (the keys in
+      `/data/keys`); browsers other than Chromium, as automated
+      tests; the UI on a phone. M3 builds on the M1 design the
+      owner has not reviewed, and the `WriteRunner` split changed
+      M1 code.
     - Known limits: `dotnet run` on the `http` launch profile shows
       a 500 on every page, because antiforgery cookies are Secure
       only; use the `https` profile. Signing out only deletes the

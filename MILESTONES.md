@@ -61,11 +61,13 @@ the owner's phone before building the real app.
 
 ---
 
-## M3: Web UI — `in-progress`
+## M3: Web UI — `done`
 **Goal:** Daily use from a browser.
 
 **Acceptance criteria:**
-- [ ] Sign in with Google; any other account is rejected
+- [x] Sign in with Google; any other account is rejected (checked
+      on the deployed app, 2026-11-22, by setting another owner
+      address and being refused)
 - [x] Capture to inbox, process, complete, defer, edit recurrence
 - [x] Views: inbox, next actions by context, projects, waiting,
       someday/maybe, weekly review, missed reminders (missed is
@@ -75,8 +77,8 @@ the owner's phone before building the real app.
 
 **Tasks:**
 - [x] Razor components for the web UI
-- [x] Google OIDC with allowlist (tested against a fake Google;
-      real Google sign-in unverified until the OAuth client exists)
+- [x] Google OIDC with allowlist (tested against a fake Google and
+      with real Google on the deployed app)
 - [x] Views listed above
 
 ---
