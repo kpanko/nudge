@@ -1,7 +1,7 @@
 # Status
 
-**Last updated:** 2026-11-15
-**Current milestone:** M2 Alarm spike
+**Last updated:** 2026-11-22
+**Current milestone:** M2 Alarm spike (M3 Web UI is `done`)
 
 ## In Progress
 - M1. All six tasks are on main: PR #6 was merged on 2026-11-15
@@ -17,9 +17,42 @@
   2026-11-15 as it was done. Everything needed to review it is in
   this file, in the six pull request descriptions, and in the
   DECISIONS.md entries of those three dates.
-- M2, the alarm spike: not started in its new form. On 2026-11-15
+- M2, the Kotlin alarm spike: built, PR #8 is open and not merged
+  (branch `m2-kotlin-alarm-spike`, four commits; CI passes at
+  the third, check it at the fourth, 017da13).
+  https://github.com/kpanko/nudge/pull/8
+  CodeRabbit reviewed it and left three minor comments; all three
+  are fixed in 017da13 and answered on the pull request (see 67
+  and 68 under "Blockers / Open Questions"). The owner said on
+  2026-11-15 they will review the PR before it is merged.
+  The first M2 task is ticked in MILESTONES.md on that branch, not
+  on main yet. The second task is the owner's: sideload the APK
+  and run the checklist in `spikes/AlarmSpikeKotlin/README.md` on
+  the phone. Every M2 acceptance criterion is still open until
+  then. See "Recently Completed" and "Key Context" for what the
+  spike is and what was checked.
+- M3, the web UI: built on 2026-11-15 and 2026-11-16 as three
+  stacked pull requests, #9, #10 and #11, all merged on 2026-11-22.
+  #9 went to `main`, but #10 and #11 went into `m3-ui-shell-auth`,
+  so the first deploy had only the sign-in shell. At the owner's
+  request that branch was merged directly into `main` (0b0e78c),
+  without another pull request. The build was clean and 678 tests
+  passed locally on the merge; the browser test runs in CI. The
+  repository now deletes branches after a merge.
+  https://github.com/kpanko/nudge/pull/9
+  https://github.com/kpanko/nudge/pull/10
+  https://github.com/kpanko/nudge/pull/11
+  The owner approved the deploy. M3 is `done` as of 2026-11-22: on
+  the deployed app the owner signed in with Google, then set
+  `Nudge__Owner__Email` to another address and was refused, then
+  restored it and signed in again. No second Google account was
+  used. Choices 69 to 102
+  under "Blockers / Open Questions" and the DECISIONS.md entries of
+  2026-11-16 explain the design; each pull request description has
+  what was checked and its review comments.
+- Before the Kotlin spike: on 2026-11-15
   the owner decided the Android app will be Kotlin, offline-first
-  (see DECISIONS.md under that date), so the spike is to be
+  (see DECISIONS.md under that date), so the spike was
   rebuilt as a bare Kotlin app. The MAUI spike, PR #7, was closed
   without merging; its branch `m2-alarm-spike` still exists, and
   its checklist in `spikes/AlarmSpike/README.md` there can be
@@ -80,9 +113,53 @@ approve it.
   stops one at once. Names are never reused, revoked ones included.
 - If only #5 is deployed, before #6, the API is open to anyone who
   can reach the app. Do not put real data in before #6 is deployed.
+- M3 sign-in: all done on 2026-11-22; kept for a rebuild. Until
+  these are done the web UI stays locked ("Sign-in
+  is not configured") and the API is unaffected:
+  1. In Google Cloud Console, create an OAuth client of type "Web
+     application" with the authorized redirect URI
+     `https://nudge-gtd.fly.dev/signin-google`.
+  2. Set the secrets (the values are the owner's; nothing is
+     committed):
+
+     ```bash
+     fly secrets set --app nudge-gtd \
+       Nudge__Google__ClientId=... \
+       Nudge__Google__ClientSecret=... \
+       Nudge__Owner__Email=...
+     ```
+
+     Optionally also `Nudge__Owner__Subject`, the account's Google
+     id, to pin it further.
+  3. Nothing to set for the Data Protection keys:
+     `Nudge__DataProtection__KeysPath = "/data/keys"` is in the
+     `[env]` section of `fly.toml` in #9.
+  4. Approve the deploy.
+  5. Sign in at https://nudge-gtd.fly.dev/ with the owner's
+     account, and check that another account is refused.
 
 ## Recently Completed
-- Alarm spike app (PR #7), the first task of M2. `spikes/AlarmSpike`
+- Kotlin alarm spike (PR #8, open), the first task of M2.
+  `spikes/AlarmSpikeKotlin` is a standalone Gradle project, outside
+  `Nudge.sln`, that CI never builds: Kotlin, platform APIs only (no
+  Compose, no AndroidX), Android 8.0 and later, target API 35. It
+  carries over the MAUI spike's behaviour, permissions, log format
+  and phone checklist: test alarms with `setAlarmClock`, a
+  notification with Complete, Schedule and Snooze, a swipe brings
+  the alarm back after 30 s, and a boot receiver registers pending
+  alarms again. Build, from the repository root, with a JDK 17 and
+  the Android SDK (API 35):
+
+  ```bash
+  cd spikes/AlarmSpikeKotlin && ./gradlew assembleRelease
+  ```
+
+  The APK is
+  `spikes/AlarmSpikeKotlin/app/build/outputs/apk/release/app-release.apk`
+  (about 640 kB, signed with the local debug key). It has the same
+  application id as the MAUI spike, so uninstall that one first if
+  it is on the phone.
+- MAUI alarm spike app (PR #7, closed without merging). `spikes/AlarmSpike`
   is a MAUI app for Android, outside `Nudge.sln`: it schedules test
   alarms with `AlarmManager.SetAlarmClock`, shows a notification
   with Complete, Schedule and Snooze, notices a swipe and brings the
@@ -136,16 +213,15 @@ approve it.
    Todoist import (M4) puts real data in.
 3. Keep the `planning-agent` token for the MCP server (M6);
    nothing reads it until then.
-4. M2: build the Kotlin alarm spike and run its checklist on the
-   phone. It needs Android Studio or the Android SDK with Gradle
-   on this machine; whether they are installed was not checked.
-5. M3, the web UI, is the next milestone to build. It was left
-   unstarted on 2026-11-15 on purpose: it builds on the M1 design in
-   #2 to #6, which the owner has not reviewed yet, and its Google
-   sign-in cannot be checked end to end without an OAuth client the
-   owner creates. Its first tasks are the Razor component
-   library and Google OIDC with the allowlist. If the owner wants it
-   before the review, cut its branch from main.
+4. M2: review and merge PR #8 (merging starts the gated deploy
+   job, though nothing in the server changed), then sideload the
+   APK and run the checklist on the phone, filling in the results
+   table in the spike's README. When the three open M2 criteria
+   pass, tick them and the second task, and mark M2 `done`.
+5. M4, the Todoist import, once the restore in step 2 has been
+   rehearsed. M3 builds on the M1 design in #2 to #6, which the
+   owner has not reviewed yet, and it changed M1 code: `WriteRunner`
+   is split into a core and the API's adapter (#10).
 
 ## Blockers / Open Questions
 - No blockers.
@@ -418,11 +494,190 @@ approve it.
         state at each delivery.
     60. Warnings are errors in the spike too (the repository's
         `Directory.Build.props` applies); the build has none.
+  - In the Kotlin alarm spike (PR #8), on 2026-11-15. The newest
+    DECISIONS.md entry, on that branch, explains these:
+    61. No Compose and no AndroidX: only the Android Gradle Plugin
+        and the Kotlin plugin, so the result is about Android
+        itself. M5 will use Compose.
+    62. Gradle 8.11.1, AGP 8.7.3, Kotlin 2.0.21. The Gradle wrapper
+        is committed with its checksum pinned. Gradle itself was
+        not installed on this machine: it was downloaded to a
+        temporary folder, which may be gone; `./gradlew` downloads
+        it again when needed.
+    63. Copy log and Share log send the last 500 lines as text, not
+        a file; `adb pull` gets the whole log.
+    64. The event log never throws. While shared storage is not
+        ready, lines go to `pending.log` in private storage and are
+        moved into `events.log` at the next write. An independent
+        review found that a failed log write could otherwise crash
+        the app before the notification was shown.
+    65. On Android 12 and 12L, alarms are not registered again by
+        themselves after exact alarms are revoked and allowed
+        again; the README says to press "Re-register all".
+    66. Lint's three warnings (backup rules, the held app context,
+        a view constructor) are left as they are, not suppressed.
+    67. The boot receiver stays exported, against CodeRabbit's
+        suggestion of `exported="false"`, so that no manufacturer's
+        boot broadcast is shut out; it ignores every action but
+        `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED` and
+        `QUICKBOOT_POWERON`.
+    68. A fire for a pending alarm that is not yet due (a stale
+        broadcast, for example just after Snooze) is logged as
+        `fired-early`, not shown, and the alarm is registered
+        again. CodeRabbit suggested only ignoring it. A second fire
+        for an alarm already showing re-posts its notification.
+  - In the web UI (PRs #9, #10 and #11), on 2026-11-15 and
+    2026-11-16. The pull request descriptions number these 67 to
+    100; here they follow on from the spike's 67 and 68. The
+    DECISIONS.md entries of 2026-11-16 explain them.
+    69. Static server-rendered Blazor; changes recorded as `web`.
+    70. Owner matched by verified email, ignoring case; optional `sub`
+        pin; re-checked on every request.
+    71. Missing sign-in settings: the app starts, the UI is locked, a
+        warning is logged.
+    72. No development sign-in; tests use a fake Google through the
+        real OpenID Connect handler.
+    73. The cookie is never accepted by the API; the UI has a separate
+        `Owner` policy.
+    74. `X-Forwarded-Proto` trusted from any sender (Fly's proxy only).
+    75. Data Protection keys as files in `/data/keys`; in memory when
+        unset.
+    76. Problem-JSON status pages only on the API side; the UI has a
+        not-found page, done by middleware.
+    77. Guard tests split into an API side and a UI side.
+    78. A non-GET request to an unknown UI path gets 401 from the
+        fallback policy.
+    79. Signing out only deletes the cookie; no server-side session
+        list.
+    80. `WriteRunner` split into a core and the HTTP adapter; the
+        handlers are internal.
+    81. Each web write runs in its own DI scope; page reads are
+        untracked.
+    82. Plain SSR forms, a `@formname` each, reading the posted fields.
+    83. Form key `web-<guid>`, fingerprinted from the posted form; the
+        same key with other values is refused.
+    84. After a write, a redirect with `?change=N` and an Undo notice.
+    85. `/` is the inbox.
+    86. Processing is one edit: list, project and defer date.
+    87. `/next`: an item under each of its contexts, "No context" last.
+    88. "Projects without a next action" counts the project's own items
+        only.
+    89. The weekly review is read-only; "next seven days" means today
+        and the six after it.
+    90. Missed reminders: a past `FireTime` on an open item,
+        provisional until M5.
+    91. The UI adds reminders only as minutes from the due time.
+    92. `/changes` shows the latest 50, each with Undo.
+    93. Test sign-in through the fake Google, not a test-only scheme.
+    94. AngleSharp 1.9.1 in the tests (1.1.2 to 1.4.0 fail on an
+        advisory).
+    95. M3 marked `in-progress`; operations and views ticked.
+    96. The smoke test has a project of its own; shared test files are
+        linked.
+    97. The smoke test runs over HTTPS with a certificate made for the
+        run (plain HTTP gets an antiforgery 500).
+    98. The fake Google's sign-in page is served by a test startup
+        filter.
+    99. Browser tests are skipped unless `NUDGE_PLAYWRIGHT=1`.
+    100. Microsoft.Playwright 1.63.0.
+    101. `FakeGoogle` has its own `ClientId`.
+    102. The sign-in cookie is checked against the configuration as it
+         is at each request, and sign-in must also have been configured
+         at startup.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
 - What was and was not checked:
-  - For the alarm spike (PR #7), on 2026-11-15:
+  - For the web UI (PRs #9, #10 and #11), on 2026-11-16:
+    - `dotnet build` (warnings are errors) and `dotnet test` pass:
+      623 tests on #9's branch (97 core, 526 web), 678 on #10's
+      (97 core, 581 web), 679 on #11's with the browser test on
+      (97 core, 581 web, 1 browser).
+    - Through the real OpenID Connect handler, against a fake
+      Google: the owner is accepted (address case ignored); another
+      account, an unverified or missing address, a token for
+      another client, another issuer, and a callback with no
+      sign-in started are refused with no cookie. A cookie is shut
+      out by a change of owner, a pinned subject that differs, or
+      sign-in no longer configured, also while the app runs.
+    - The cookie opens no API endpoint, and an API token opens no
+      page. Every UI endpoint but the listed sign-in pages and the
+      static files needs the owner.
+    - Every write from the UI is logged as `web` with the API's
+      description and can be undone from its notice. A form sent
+      twice writes once and is answered the same, also once the
+      form is gone. Antiforgery is checked, item text is
+      HTML-encoded, and completing a repeating item advances it
+      once.
+    - The Chromium smoke test passes locally on Windows and in CI
+      (run 43979071913 at 33c4863: Passed 1, Skipped 0). It uses
+      enhanced navigation and forms throughout, and fails if any
+      step is a full page load (tried).
+    - Three independent reviews (one per pull request); their
+      findings are fixed. CodeRabbit reviewed all three pull
+      requests: one finding on #9 (fixed in ca92d55), five on #10
+      (fixed in 6f4e30b) and a follow-up there about fractions of a
+      second in due times (fixed in 19c4780), and one on #11 (fixed
+      in 33c4863). With the owner's go-ahead, every CodeRabbit
+      thread on #9, #10 and #11 was answered and resolved on
+      2026-11-16; each pull request description lists them under
+      "Review comments". One later CodeRabbit follow-up on #11 was
+      left unfixed on purpose: a disk-write failure while the smoke
+      test saves its failure artifacts can still replace the test's
+      own failure, which is not worth more code in a diagnostics
+      path (listed under known limits in #11).
+    - Checked on the deployed app on 2026-11-22: real Google
+      sign-in, and refusal when the signed-in account is not the
+      configured owner.
+    - Not checked: a cookie surviving a restart (the keys in
+      `/data/keys`); browsers other than Chromium, as automated
+      tests; the UI on a phone. M3 builds on the M1 design the
+      owner has not reviewed, and the `WriteRunner` split changed
+      M1 code.
+    - Known limits: `dotnet run` on the `http` launch profile shows
+      a 500 on every page, because antiforgery cookies are Secure
+      only; use the `https` profile. Signing out only deletes the
+      browser's cookie. `X-Forwarded-Proto` is trusted from any
+      sender. The weekly review and missed reminders definitions
+      are provisional until M5.
+  - For the Kotlin alarm spike (PR #8), on 2026-11-15:
+    - `./gradlew assembleRelease lint` succeeds with no Kotlin
+      warnings (they are errors) and no lint errors, also from a
+      fresh checkout of the first commit in a temporary worktree.
+    - On the Pixel 7 API 35 emulator (run with `-read-only`, more
+      memory and software graphics, so the AVD is unchanged), with
+      the Release APK of the first commit: app open +402 ms; after
+      `am kill` with the screen off +2173 ms (cold start); forced
+      deep Doze +64 ms (the phone left Doze under a minute before
+      the alarm, and the process was alive); airplane mode after
+      `am kill` +283 ms; after `adb reboot` a future alarm was
+      re-registered and fired at +339 ms, and an overdue one fired
+      as LATE; Complete, Snooze and Schedule each worked, Complete
+      and Snooze also with the process killed first; "Clear all"
+      was detected as a swipe and the alarm came back 30 s later;
+      an update ran the restore; `adb pull` read the log.
+    - After the review fixes, a shorter run on the final APK: cold
+      start after `am kill` +2283 ms; after `adb reboot` one
+      notification was re-shown and one alarm re-registered, which
+      fired at +711 ms; log lines written before shared storage
+      was ready were in `events.log` afterwards; Copy log worked.
+    - After the CodeRabbit fixes (017da13), build and lint again,
+      and on the emulator: a normal alarm +553 ms; Snooze, then
+      +87 ms, with no `fired-early` line; after `adb reboot` a
+      future alarm was re-registered and fired at +213 ms; an
+      explicit broadcast with an unknown action to the boot
+      receiver logged and restored nothing. The `fired-early` path
+      itself could not be provoked from adb and was checked by
+      reading only.
+    - Not checked: anything on the owner's phone (every M2
+      acceptance criterion is still open); a real swipe gesture
+      (`input swipe` did not dismiss the notification on the
+      emulator); Doze reached by stillness; Android versions other
+      than 15; manufacturer battery rules; the full checklist on
+      the final APK (only the shorter run above); CI does not build
+      the spike. On the emulator `BOOT_COMPLETED` reached the app
+      1.5 to 3 minutes after the system finished booting.
+  - For the MAUI alarm spike (PR #7, closed), on 2026-11-15:
     - The Release build from the command line is clean (no
       warnings). The APK path is under "Must be done by hand".
       Repeated from a fresh checkout of c8230e4 in a temporary
@@ -638,6 +893,12 @@ approve it.
   PR #1 were valid and are fixed.
 - `RecurrenceRule` returns null when nothing matches within 400
   years; this is deliberate and means "stops repeating".
+- Android toolchain on the dev machine: the Android SDK (API 34
+  and 35, build-tools 35.0.0, a Pixel 7 API 35 emulator) and a
+  JDK 17, both as Visual Studio installed them, under
+  `C:\Program Files (x86)\Android`. Neither `java` nor `adb` is on
+  PATH and `ANDROID_HOME` is unset; the spike's README says what to
+  set. Android Studio and Gradle are not installed.
 - MAUI and Android workloads are installed for .NET 9; the .NET 10
   workloads have not been checked.
 - `dotnet workload list` hangs on this machine; avoid it.

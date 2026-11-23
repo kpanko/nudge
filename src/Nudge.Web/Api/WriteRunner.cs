@@ -38,6 +38,9 @@ public sealed class WriteRunner(
     /// <summary>The largest body a write accepts, in bytes.</summary>
     public const int MaxBodyBytes = 1 << 20;
 
+    /// <summary>The write as the API receives it: read from the
+    /// request, carried out by <see cref="ExecuteAsync"/>, and
+    /// answered.</summary>
     public async Task<IResult> RunAsync<TBody, TData>(
         HttpContext http,
         WriteEndpoint endpoint,
@@ -52,77 +55,26 @@ public sealed class WriteRunner(
             var (body, present) = Parse<TBody>(endpoint, bytes);
             var method = http.Request.Method;
             var path = http.Request.Path.Value ?? "";
-            var fingerprint = Fingerprint(method, path, bytes);
-
-            db.Source = source.For(http);
-            db.Description = endpoint.Description;
-
-            // Taken before anything is read; see above.
-            await using var transaction = await db.Database
-                .BeginTransactionAsync(cancellationToken);
-
-            if (key is not null
-                && await db.IdempotencyRecords
-                    .AsNoTracking()
-                    .SingleOrDefaultAsync(
-                        record => record.Key == key,
-                        cancellationToken)
-                    is { } earlier)
-            {
-                if (earlier.Fingerprint != fingerprint)
-                {
-                    throw new ApiProblem(
-                        StatusCodes.Status422UnprocessableEntity,
-                        "The idempotency key was used for another request.",
-                        $"The key was first sent with {earlier.Method}"
-                        + $" {earlier.Path} and a body that may differ."
-                        + " Use a new key for a new request.");
-                }
-
-                http.Response.Headers[ReplayedHeader] = "true";
-                return Respond(earlier.Status, earlier.Body);
-            }
-
-            var outcome = await work(
-                new Write<TBody>(
-                    db,
+            var done = await ExecuteAsync(
+                new WriteRequest<TBody>(
+                    source.For(http),
+                    endpoint.Description,
                     body,
                     present,
-                    http,
-                    clock.GetUtcNow(),
-                    zone.Zone));
-            await SaveAsync(cancellationToken);
-
-            var change = outcome.Change ?? db.LastChange;
-            var result = new WriteResult<TData>(
-                dryRun,
-                change is null ? null : ChangeView.Of(change, dryRun),
-                outcome.Data());
-            var text = JsonSerializer.Serialize(result, JsonSetup.Options);
-
-            if (dryRun)
+                    http.Request.RouteValues,
+                    dryRun,
+                    key,
+                    method,
+                    path,
+                    Fingerprint(method, path, bytes)),
+                work,
+                cancellationToken);
+            if (done.Replayed)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                return Respond(StatusCodes.Status200OK, text);
+                http.Response.Headers[ReplayedHeader] = "true";
             }
 
-            if (key is not null)
-            {
-                db.IdempotencyRecords.Add(
-                    new IdempotencyRecord(
-                        key,
-                        method,
-                        path,
-                        fingerprint,
-                        outcome.Status,
-                        text,
-                        change?.Id,
-                        clock.GetUtcNow()));
-                await SaveAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-            return Respond(outcome.Status, text);
+            return Respond(done.Status, done.Body);
         }
         catch (ApiProblem problem)
         {
@@ -130,6 +82,101 @@ public sealed class WriteRunner(
             // by leaving its block.
             return problem.ToResult(http);
         }
+    }
+
+    /// <summary>
+    /// Carries out a write that has been read and checked, from the
+    /// API or from the web UI: who makes it, the transaction, the
+    /// work, the save, the dry run's rollback, and the idempotency
+    /// record. It knows nothing of HTTP.
+    /// </summary>
+    /// <exception cref="ApiProblem">The write is refused; nothing
+    /// was kept.</exception>
+    internal async Task<WriteDone> ExecuteAsync<TBody, TData>(
+        WriteRequest<TBody> request,
+        Func<Write<TBody>, Task<WriteOutcome<TData>>> work,
+        CancellationToken cancellationToken)
+    {
+        db.Source = request.Source;
+        db.Description = request.Description;
+
+        // Taken before anything is read; see above.
+        await using var transaction = await db.Database
+            .BeginTransactionAsync(cancellationToken);
+
+        if (request.Key is { } key
+            && await db.IdempotencyRecords
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    record => record.Key == key,
+                    cancellationToken)
+                is { } earlier)
+        {
+            if (earlier.Fingerprint != request.Fingerprint)
+            {
+                throw new ApiProblem(
+                    StatusCodes.Status422UnprocessableEntity,
+                    "The idempotency key was used for another request.",
+                    $"The key was first sent with {earlier.Method}"
+                    + $" {earlier.Path} and a body that may differ."
+                    + " Use a new key for a new request.");
+            }
+
+            return new WriteDone(
+                earlier.Status,
+                earlier.Body,
+                earlier.ChangeId,
+                Replayed: true);
+        }
+
+        var outcome = await work(
+            new Write<TBody>(
+                db,
+                request.Body,
+                request.Present,
+                request.Route,
+                clock.GetUtcNow(),
+                zone.Zone));
+        await SaveAsync(cancellationToken);
+
+        var change = outcome.Change ?? db.LastChange;
+        var result = new WriteResult<TData>(
+            request.DryRun,
+            change is null ? null : ChangeView.Of(change, request.DryRun),
+            outcome.Data());
+        var text = JsonSerializer.Serialize(result, JsonSetup.Options);
+
+        if (request.DryRun)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return new WriteDone(
+                StatusCodes.Status200OK,
+                text,
+                null,
+                Replayed: false);
+        }
+
+        if (request.Key is not null)
+        {
+            db.IdempotencyRecords.Add(
+                new IdempotencyRecord(
+                    request.Key,
+                    request.Method,
+                    request.Path,
+                    request.Fingerprint,
+                    outcome.Status,
+                    text,
+                    change?.Id,
+                    clock.GetUtcNow()));
+            await SaveAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return new WriteDone(
+            outcome.Status,
+            text,
+            change?.Id,
+            Replayed: false);
     }
 
     /// <summary>The response, written the same way the first time
@@ -361,7 +408,7 @@ public sealed class WriteRunner(
     /// an id in upper case is the same request; an id spelt another
     /// way (without hyphens, in braces) is not.
     /// </summary>
-    private static string Fingerprint(
+    internal static string Fingerprint(
         string method,
         string path,
         byte[] body)
@@ -379,24 +426,68 @@ public sealed class WriteRunner(
     }
 }
 
+/// <summary>A write read and checked, ready for
+/// <see cref="WriteRunner.ExecuteAsync"/>.</summary>
+/// <param name="Source">Who makes it, from
+/// <see cref="ChangeSource"/>.</param>
+/// <param name="Description">Recorded with the change.</param>
+/// <param name="Present">The names, in JSON, of the properties the
+/// body gave.</param>
+/// <param name="Route">The route's values, such as the item's id.
+/// </param>
+/// <param name="Method">Kept with the idempotency record.</param>
+/// <param name="Path">Kept with the idempotency record.</param>
+/// <param name="Fingerprint">What makes two requests with the same
+/// key the same request.</param>
+internal sealed record WriteRequest<TBody>(
+    string Source,
+    string Description,
+    TBody Body,
+    IReadOnlySet<string> Present,
+    RouteValueDictionary Route,
+    bool DryRun,
+    string? Key,
+    string Method,
+    string Path,
+    string Fingerprint);
+
+/// <summary>What a write came to: the status and body the API
+/// answers with, the change it recorded, and whether it was a replay
+/// of an earlier request with the same key.</summary>
+internal sealed record WriteDone(
+    int Status,
+    string Body,
+    long? ChangeId,
+    bool Replayed);
+
 /// <summary>Who changes are recorded as made by.</summary>
 public sealed class ChangeSource
 {
+    /// <summary>What changes made through the web UI are recorded
+    /// as made by.</summary>
+    public const string WebUi = "web";
+
     /// <summary>
     /// The name recorded with every change a request makes:
-    /// <c>api:</c> and the name of the token it was made with. This
-    /// is the one place it is decided; the web UI (M3) will add a
-    /// name for the signed-in owner.
+    /// <c>api:</c> and the name of the token it was made with, or
+    /// <see cref="WebUi"/> for the owner signed in to the web UI.
+    /// This is the one place it is decided.
     /// </summary>
     /// <exception cref="InvalidOperationException">The request was
-    /// not authenticated, which the fallback policy rules out before
-    /// a write is reached.</exception>
+    /// not authenticated, which the fallback policy and the owner's
+    /// policy rule out before a write is reached.</exception>
     public string For(HttpContext http)
     {
-        var token = Auth.ApiTokenAuthentication.TokenName(http.User)
-            ?? throw new InvalidOperationException(
-                "A write was reached without an API token.");
-        return $"api:{token}";
+        if (Auth.ApiTokenAuthentication.TokenName(http.User) is { } token)
+        {
+            return $"api:{token}";
+        }
+
+        return Auth.OwnerAuthentication.IsOwner(http.User)
+            ? WebUi
+            : throw new InvalidOperationException(
+                "A write was reached without an API token or the"
+                + " owner's sign-in.");
     }
 }
 

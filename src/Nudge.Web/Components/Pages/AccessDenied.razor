@@ -1,0 +1,11 @@
+@page "/access-denied"
+@attribute [AllowAnonymous]
+
+<PageTitle>Not signed in - Nudge</PageTitle>
+
+<h1>Not signed in</h1>
+<p>
+    The sign-in did not work. Only the owner's Google account can
+    use Nudge, and only with an address Google has verified.
+</p>
+<p><a href="@OwnerAuthentication.SignInPath">Try again</a></p>

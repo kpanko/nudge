@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Nudge.Web;
 using Nudge.Web.Api;
 using Nudge.Web.Auth;
+using Nudge.Web.Components;
 using Nudge.Web.Data;
 
 // "token create|list|revoke": manage API tokens without starting the
@@ -37,6 +38,9 @@ builder.Services.ConfigureHttpJsonOptions(
 builder.Services.AddNudgeAuthentication();
 builder.Services.AddNudgeApi();
 builder.Services.AddNudgeOpenApi();
+builder.Services.AddNudgeWebUi(
+    builder.Configuration,
+    OwnerSignIn.From(builder.Configuration));
 var app = builder.Build();
 app.Logger.LogInformation("Owner time zone: {Zone}", ownerTimeZone);
 
@@ -50,15 +54,33 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider.GetRequiredService<NudgeDbContext>());
 }
 
+// Read first: whether the request came in over HTTPS (see
+// AddNudgeWebUi).
+app.UseForwardedHeaders();
+
 // Anything that goes wrong is answered with problem details (RFC
-// 9457), including 404s and 405s from routing.
+// 9457), including 404s and 405s from routing, on the API side; the
+// web UI shows a page of its own for a path that is not there.
 app.UseExceptionHandler();
-app.UseStatusCodePages();
+app.UseWhen(
+    context => !WebUi.IsUiPath(context.Request.Path),
+    api => api.UseStatusCodePages());
+app.UseWhen(
+    context => WebUi.IsUiPath(context.Request.Path),
+    ui => ui.UseStatusCodePagesWithReExecute(
+        WebUi.NotFoundPath,
+        createScopeForStatusCodePages: true));
+app.UseRouting();
+app.UseUiNotFound();
 
 // Every endpoint requires an API token unless it allows anonymous
-// requests, as the two below do; see ApiTokenAuthentication.
+// requests, as the two below do; see ApiTokenAuthentication. The
+// web UI's endpoints ask for the owner's sign-in instead; see
+// OwnerAuthentication.
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
+app.UseUiReplay();
 
 app.MapGet(
     "/healthz",
@@ -80,6 +102,8 @@ app.MapNudgeApi();
 // the MCP server (M6) read it, and it describes a public
 // repository's API.
 app.MapOpenApi(OpenApiSetup.DocumentPath).AllowAnonymous();
+
+app.MapNudgeWebUi();
 
 app.Run();
 return 0;

@@ -1,0 +1,38 @@
+@inject UiQueries Queries
+@inject WebWrites Writes
+
+@* After a write, what was done, and a way to take it back. *@
+@if (_change is not null)
+{
+    <div class="notice" role="status">
+        <span>
+            @(_change.Undoes is null ? "Done" : "Undone"):
+            @_change.Description (change @_change.Id).
+        </span>
+        <ActionForm Name="undo-notice" Action="UndoAsync" Class="inline">
+            <button type="submit">Undo</button>
+        </ActionForm>
+    </div>
+}
+
+@code {
+    private Nudge.Web.Data.Change? _change;
+
+    [SupplyParameterFromQuery(Name = "change")]
+    private long? ChangeId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ChangeId is { } id)
+        {
+            _change = await Queries.ChangeAsync(id);
+        }
+    }
+
+    private Task<WebWriteResult> UndoAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Writes.UndoAsync(key, _change!.Id);
+    }
+}

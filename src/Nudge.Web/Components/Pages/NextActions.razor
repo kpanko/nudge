@@ -1,0 +1,60 @@
+@page "/next"
+@inject UiQueries Queries
+@inject WebWrites Writes
+
+<PageTitle>Next actions - Nudge</PageTitle>
+
+<h1>Next actions</h1>
+<p class="hint">
+    By context. Items deferred past today (@Words.Date(Queries.Today()))
+    are left out until their day.
+</p>
+
+@if (_groups.Count == 0)
+{
+    <p class="empty">No next actions.</p>
+}
+
+@foreach (var group in _groups)
+{
+    <section class="group">
+        <h2>@(group.Context?.Name ?? "No context")</h2>
+        <ul class="items">
+            @foreach (var item in group.Items)
+            {
+                <ItemRow Item="item" Scope="@ScopeOf(group)" />
+            }
+        </ul>
+    </section>
+}
+
+<ActionForm Name="new-context" Action="CreateContextAsync" Class="inline">
+    <label>
+        New context
+        <input type="text" name="name" required autocomplete="off" />
+    </label>
+    <button type="submit">Add context</button>
+</ActionForm>
+
+@code {
+    private IReadOnlyList<ContextGroup> _groups = [];
+
+    /// <summary>An item under two contexts is listed twice; each
+    /// listing's forms are named apart.</summary>
+    private static string ScopeOf(ContextGroup group)
+    {
+        return group.Context?.Id.ToString("N") ?? "none";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _groups = await Queries.NextActionsAsync();
+    }
+
+    private Task<WebWriteResult> CreateContextAsync(
+        IFormCollection form,
+        string key)
+    {
+        return Writes.CreateContextAsync(key, form["name"].ToString().Trim());
+    }
+}

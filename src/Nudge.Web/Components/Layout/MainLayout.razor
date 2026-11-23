@@ -1,0 +1,43 @@
+@inherits LayoutComponentBase
+
+<header class="top">
+    <a class="brand" href="/">Nudge</a>
+    @if (SignedIn)
+    {
+        <nav class="views">
+            <NavLink href="/inbox">Inbox</NavLink>
+            <NavLink href="/next">Next</NavLink>
+            <NavLink href="/projects" Match="NavLinkMatch.Prefix">
+                Projects
+            </NavLink>
+            <NavLink href="/waiting">Waiting</NavLink>
+            <NavLink href="/someday">Someday</NavLink>
+            <NavLink href="/review">Review</NavLink>
+            <NavLink href="/missed">Missed</NavLink>
+            <NavLink href="/changes">Changes</NavLink>
+        </nav>
+        <form class="sign-out"
+              method="post"
+              action="@OwnerAuthentication.SignOutPath">
+            <AntiforgeryToken />
+            <button type="submit">Sign out</button>
+        </form>
+    }
+</header>
+
+<main>
+    @if (SignedIn)
+    {
+        <Notice />
+    }
+    @Body
+</main>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private bool SignedIn =>
+        HttpContext is not null
+        && OwnerAuthentication.IsOwner(HttpContext.User);
+}
