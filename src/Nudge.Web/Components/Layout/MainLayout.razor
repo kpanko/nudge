@@ -5,7 +5,7 @@
     @if (SignedIn)
     {
         <nav class="views">
-            <NavLink href="/inbox">Inbox</NavLink>
+            <NavLink href="/inbox" class="@InboxClass">Inbox</NavLink>
             <NavLink href="/next">Next</NavLink>
             <NavLink href="/projects" Match="NavLinkMatch.Prefix">
                 Projects
@@ -40,4 +40,9 @@
     private bool SignedIn =>
         HttpContext is not null
         && OwnerAuthentication.IsOwner(HttpContext.User);
+
+    /// <summary>The site root shows the inbox too, so its link is
+    /// marked there as well.</summary>
+    private string? InboxClass =>
+        HttpContext?.Request.Path.Value == "/" ? "active" : null;
 }

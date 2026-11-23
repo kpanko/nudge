@@ -93,7 +93,7 @@
 
     <section class="group">
         <h2>Defer</h2>
-        <ActionForm Name="defer" Action="DeferAsync" Class="inline">
+        <ActionForm Name="defer" Action="DeferAsync" Class="field-row">
             <label>
                 Until
                 <input type="date"
@@ -107,7 +107,7 @@
 
     <section class="group">
         <h2>Due</h2>
-        <ActionForm Name="due" Action="RescheduleAsync" Class="inline">
+        <ActionForm Name="due" Action="RescheduleAsync" Class="field-row">
             <input type="date"
                    name="date"
                    value="@Words.Date(item.DueDate)"
@@ -186,7 +186,9 @@
                 </li>
             }
         </ul>
-        <ActionForm Name="add-reminder" Action="AddReminderAsync" Class="inline">
+        <ActionForm Name="add-reminder"
+                    Action="AddReminderAsync"
+                    Class="field-row">
             <label>
                 Minutes from the due time (midnight if it has no time)
                 <input type="number" name="offsetMinutes" value="540" required />
@@ -212,7 +214,9 @@
         </ul>
         @if (_contexts.Any(c => item.Contexts.All(i => i.Id != c.Id)))
         {
-            <ActionForm Name="add-context" Action="AddContextAsync" Class="inline">
+            <ActionForm Name="add-context"
+                        Action="AddContextAsync"
+                        Class="field-row">
                 <select name="contextId" aria-label="Context">
                     @foreach (var context in _contexts
                         .Where(c => item.Contexts.All(i => i.Id != c.Id)))

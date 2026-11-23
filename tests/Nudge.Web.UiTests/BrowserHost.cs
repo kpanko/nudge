@@ -96,6 +96,10 @@ internal sealed class BrowserHost : IAsyncDisposable
 
     public NudgeWebFactory Factory { get; }
 
+    /// <summary>The running app's services, to seed a test's data.
+    /// </summary>
+    public IServiceProvider Services => _app.Services;
+
     public static async Task<BrowserHost> StartAsync()
     {
         var host = new BrowserHost();
