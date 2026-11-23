@@ -70,7 +70,8 @@ the owner's phone before building the real app.
 - [x] Views: inbox, next actions by context, projects, waiting,
       someday/maybe, weekly review, missed reminders (missed is
       provisional until M5 records acknowledgements)
-- [ ] Playwright smoke test passes in CI
+- [x] Playwright smoke test passes in CI (Chromium, sign-in through
+      a fake Google)
 
 **Tasks:**
 - [x] Razor components for the web UI

@@ -25,6 +25,10 @@ internal sealed class FakeGoogle : HttpMessageHandler
     public const string AuthorizationEndpoint = Issuer + "/o/oauth2/auth";
     public const string TokenEndpoint = Issuer + "/token";
 
+    /// <summary>The invented OAuth client the app is set up with in
+    /// tests.</summary>
+    public const string ClientId = "nudge-tests.apps.example.test";
+
     private readonly RsaSecurityKey _key =
         new(RSA.Create(2048)) { KeyId = "fake-google" };
 
@@ -53,7 +57,7 @@ internal sealed class FakeGoogle : HttpMessageHandler
         bool emailVerified,
         string subject,
         string nonce,
-        string audience = WebUiHost.ClientId,
+        string audience = ClientId,
         string issuer = Issuer)
     {
         var claims = new Dictionary<string, object>
