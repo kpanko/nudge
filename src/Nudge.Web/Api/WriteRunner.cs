@@ -382,21 +382,31 @@ public sealed class WriteRunner(
 /// <summary>Who changes are recorded as made by.</summary>
 public sealed class ChangeSource
 {
+    /// <summary>What changes made through the web UI are recorded
+    /// as made by.</summary>
+    public const string WebUi = "web";
+
     /// <summary>
     /// The name recorded with every change a request makes:
-    /// <c>api:</c> and the name of the token it was made with. This
-    /// is the one place it is decided; the web UI (M3) will add a
-    /// name for the signed-in owner.
+    /// <c>api:</c> and the name of the token it was made with, or
+    /// <see cref="WebUi"/> for the owner signed in to the web UI.
+    /// This is the one place it is decided.
     /// </summary>
     /// <exception cref="InvalidOperationException">The request was
-    /// not authenticated, which the fallback policy rules out before
-    /// a write is reached.</exception>
+    /// not authenticated, which the fallback policy and the owner's
+    /// policy rule out before a write is reached.</exception>
     public string For(HttpContext http)
     {
-        var token = Auth.ApiTokenAuthentication.TokenName(http.User)
-            ?? throw new InvalidOperationException(
-                "A write was reached without an API token.");
-        return $"api:{token}";
+        if (Auth.ApiTokenAuthentication.TokenName(http.User) is { } token)
+        {
+            return $"api:{token}";
+        }
+
+        return Auth.OwnerAuthentication.IsOwner(http.User)
+            ? WebUi
+            : throw new InvalidOperationException(
+                "A write was reached without an API token or the"
+                + " owner's sign-in.");
     }
 }
 

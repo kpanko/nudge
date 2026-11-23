@@ -33,14 +33,17 @@ public sealed class WriteGuaranteeTests : IDisposable
         return reply.Status is HttpStatusCode.OK or HttpStatusCode.Created;
     }
 
-    /// <summary>Every endpoint the app maps, as method and route,
-    /// with whether it goes through the write runner.</summary>
+    /// <summary>Every endpoint the app maps on the API side, as
+    /// method and route, with whether it goes through the write
+    /// runner. The web UI's endpoints are checked in
+    /// <c>UiEndpointTests</c>.</summary>
     private List<(string Name, bool Runner)> Endpoints()
     {
         return _api.Services
             .GetRequiredService<EndpointDataSource>()
             .Endpoints
             .OfType<RouteEndpoint>()
+            .Where(EndpointSides.IsApiSide)
             .SelectMany(
                 endpoint => (endpoint.Metadata
                         .GetMetadata<HttpMethodMetadata>()

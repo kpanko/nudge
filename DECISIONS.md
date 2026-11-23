@@ -1091,3 +1091,115 @@ only to that closed branch. A second toolchain (Android Studio,
 Gradle) is needed, in CI too.
 
 ---
+
+## 2026-11-16 The web UI is static server-rendered Blazor in Nudge.Web
+
+**Context:** M3 adds a web UI to the same app. Its writes must go
+through the same path as the API's (logged with a source,
+undoable), and it has to be testable without a browser for most of
+it.
+
+**Decision:** Razor components in `Nudge.Web/Components`, rendered
+on the server per request (static SSR) with Blazor's enhanced
+navigation and forms; no interactive render mode, so no circuit and
+no WebSocket. Every action is an ordinary HTTP request with its own
+`HttpContext` and request-scoped `NudgeDbContext`. Changes made
+through the web UI are recorded with the source `web`
+(`ChangeSource.WebUi`). The UI's writes will reuse the write
+runner's core, split from its HTTP parsing (second M3 pull
+request). The components are the web UI's own; there is no shared
+Razor library.
+
+**Alternatives considered:** Interactive Server (a long-lived
+circuit holds a DbContext and has no request to name the source).
+WebAssembly calling `/api` with the cookie (a second client project,
+and the cookie would have to open the API). `web:<email>` as the
+source (puts personal data in the log and the API's answers).
+
+**Consequences:** Pages are plain HTML and can be tested with
+`WebApplicationFactory`. Interactivity, if ever wanted, can be added
+to single components later.
+
+---
+
+## 2026-11-16 Google sign-in is a cookie scheme apart from the API's
+
+**Context:** VISION.md asks for Google sign-in restricted to one
+account, next to the API tokens. The API refuses cookies today, and
+must keep doing so: a cookie sent by the browser to the API would
+let another site write.
+
+**Decision:** Two more schemes: `OwnerCookie` (cookie
+`__Host-nudge`: Secure, HttpOnly, SameSite=Lax, 30 days sliding) and
+`Google` (OpenID Connect, authority `https://accounts.google.com`,
+code flow with PKCE, scopes `openid email`, callback
+`/signin-google`; the id token's issuer must be
+`https://accounts.google.com` or `accounts.google.com`, the two
+forms Google documents). The API token stays the default scheme
+and the fallback policy stays the API token's; the web UI's endpoints
+require the policy `Owner` (the cookie scheme, an identity of type
+`Owner`). So the cookie is never read on the API side and a token
+never opens a page. At sign-in the id token's `email` must equal
+`Nudge:Owner:Email`, ignoring case, with `email_verified` true; if
+`Nudge:Owner:Subject` is set the `sub` must equal it too. Otherwise
+no cookie is set, the refusal is logged without the address, and
+the browser goes to `/access-denied`. The cookie keeps only `sub`
+and `email`, and is checked against the configuration again on
+every request (`OnValidatePrincipal`), so a change of owner, or
+sign-in no longer configured, shuts out a cookie made before. Sign
+out is a POST with an antiforgery token. Return addresses after
+sign-in are followed only when they are a path on this site. The
+settings are `Nudge:Google:ClientId`, `Nudge:Google:ClientSecret`,
+`Nudge:Owner:Email` and `Nudge:Owner:Subject`, all deployment
+secrets. If any of the first three is missing the app still starts,
+logs a warning, does not register the Google scheme, and every page
+stays locked (`/signin` says sign-in is not configured); the API is
+unaffected. There is no development sign-in in the app; tests drive
+the real handler against a fake Google in the test project.
+
+**Alternatives considered:** Adding the cookie to the fallback
+policy (opens the API to cross-site requests). The OAuth-only
+Google package (no id token, so no verified-address claim to check).
+Failing at startup without the settings (every merge deploys, and
+the OAuth client does not exist yet). Matching on `sub` only (the
+owner knows the address, not the id).
+
+**Consequences:** Real Google sign-in is unverified until the owner
+creates the OAuth client. A signed-out cookie replayed by someone
+who copied it still works until it expires; there is no server-side
+session list.
+
+---
+
+## 2026-11-16 Forwarded proto is trusted; cookie keys live on the volume
+
+**Context:** Fly's proxy ends TLS and forwards plain HTTP to port
+8080, so without help the app builds an `http://` redirect address
+for Google. Data Protection keys, which encrypt the cookies, are
+made fresh in each container unless kept somewhere.
+
+**Decision:** Only `X-Forwarded-Proto` is read, from any sender
+(the known proxies and networks are cleared): the app is reachable
+only through Fly's proxy, which sets it. `X-Forwarded-For` and
+`X-Forwarded-Host` are not read, so a request cannot change the
+host in the redirect address. Keys are kept as files in
+`Nudge:DataProtection:KeysPath`, set to `/data/keys` in `fly.toml`,
+under the application name `Nudge`; when it is unset (tests,
+`dotnet run`) the keys live in an in-memory key repository, so the
+default folder in the user's profile (or `~/.aspnet` in a
+container) is neither read nor written. Problem-details status
+pages now apply only to the API side (`/api`, `/healthz`, `/openapi`); a path of the web UI
+that matches nothing needs the owner signed in, then shows the
+`/not-found` page.
+
+**Alternatives considered:** Keys in the database (they would fall
+under the change log's rules). A catch-all fallback route for the
+not-found page (it took part in matching the API's routes and
+turned their requests without a content type into 404s).
+
+**Consequences:** If the app is ever exposed other than through
+Fly's proxy, the forwarded proto must be restricted to that proxy.
+The keys are not encrypted at rest and are not in the Litestream
+backup; losing them only signs the owner out.
+
+---
