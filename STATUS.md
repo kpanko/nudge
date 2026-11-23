@@ -214,9 +214,8 @@ approve it.
 1. Confirm the two choices in the CodeRabbit fixes (see
    "Blockers / Open Questions"); both can still be changed by a
    new commit on main.
-2. Rehearse a restore from the Litestream backup. It needs the
-   owner's Fly and Tigris credentials, and is best done before the
-   Todoist import (M4) puts real data in.
+2. Done on 2026-11-22: a restore from the Litestream backup was
+   rehearsed (see "Backup restore" at the end of this file).
 3. Keep the `planning-agent` token for the MCP server (M6);
    nothing reads it until then.
 4. M2: review and merge PR #8 (merging starts the gated deploy
@@ -224,8 +223,7 @@ approve it.
    APK and run the checklist on the phone, filling in the results
    table in the spike's README. When the three open M2 criteria
    pass, tick them and the second task, and mark M2 `done`.
-5. M4, the Todoist import, once the restore in step 2 has been
-   rehearsed. M3 builds on the M1 design in #2 to #6, which the
+5. M4, the Todoist import. M3 builds on the M1 design in #2 to #6, which the
    owner has not reviewed yet, and it changed M1 code: `WriteRunner`
    is split into a core and the API's adapter (#10).
 
@@ -912,4 +910,25 @@ approve it.
   environment in GitHub Actions. The local
   flyctl is old and failed to allocate IPs on first deploy; they
   were allocated by hand.
-- A restore from backup has not been rehearsed yet.
+- Backup restore, rehearsed on the production machine on
+  2026-11-22, into a temporary folder that was then deleted; the
+  live database was not written to:
+
+  ```sh
+  litestream restore -o /tmp/rr/nudge.db /data/nudge.db
+  ConnectionStrings__Nudge=Filename=/tmp/rr/nudge.db \
+    dotnet /app/Nudge.Web.dll token list
+  ```
+
+  Run them in `flyctl ssh console --app nudge-gtd` after
+  `mkdir /tmp/rr`, and `rm -rf /tmp/rr` afterwards.
+  - Checked: the snapshot and WAL files were applied; the copy is
+    163,840 bytes, as is the live main file; the app opened it,
+    found no pending migration, and listed the `planning-agent`
+    token. Replication lag was about 0.5 s, and the replica's last
+    write matched the live WAL's time (02:11 UTC).
+  - Not checked: a marker row written just before the restore; a
+    full SQLite integrity check; a real recovery, where `run.sh`
+    restores by itself onto a new empty volume.
+  - The Data Protection keys in `/data/keys` are not in the backup,
+    so a real recovery signs the owner out.
