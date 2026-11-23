@@ -26,11 +26,12 @@
 </header>
 
 <main>
+    @Body
+    @* Last, so that its sticky bar comes to rest below the last row. *@
     @if (SignedIn)
     {
         <Notice />
     }
-    @Body
 </main>
 
 @code {

@@ -494,23 +494,38 @@ a.fact {
     color: var(--danger);
 }
 
+/* Held at the bottom of the viewport while the page scrolls. It is
+   last in main and keeps its place in the flow, so at the end of the
+   page it rests below the last row instead of covering it. */
 .notice {
+    position: sticky;
+    bottom: var(--space-2);
+    z-index: 1;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2) var(--space-3);
     padding: var(--space-2) var(--space-3);
-    margin-bottom: var(--space-4);
+    margin-top: var(--space-2);
     background: var(--accent-soft);
     border: 1px solid var(--accent);
     border-radius: var(--radius);
     overflow-wrap: anywhere;
 }
 
+/* A very long description scrolls inside the bar, so the bar cannot
+   fill a small screen and Undo stays in sight. */
 .notice > span {
     flex: 1 1 12rem;
     min-width: 0;
+    max-height: 30vh;
+    overflow-y: auto;
+}
+
+/* Keyboard focus must not land behind the bar. */
+html:has(.notice) {
+    scroll-padding-bottom: calc(30vh + 2 * var(--space-5));
 }
 
 .hint,
