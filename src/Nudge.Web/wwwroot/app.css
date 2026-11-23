@@ -309,13 +309,52 @@ textarea {
     margin-top: var(--space-1);
 }
 
-.process > select {
-    flex: 1 1 9rem;
-    width: auto;
-}
-
 .process label {
     flex: 1 1 9rem;
+}
+
+/* An inbox row's processing controls, opened on demand. */
+.organize {
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+.organize > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-height);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-s);
+    color: var(--accent);
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+}
+
+.organize > summary::-webkit-details-marker {
+    display: none;
+}
+
+.organize > summary::before {
+    content: "";
+    width: 0.45em;
+    height: 0.45em;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+}
+
+.organize[open] > summary::before {
+    transform: rotate(45deg);
+}
+
+.organize > summary:hover {
+    background: var(--surface-2);
+}
+
+.organize > .field-row {
+    padding-top: var(--space-2);
 }
 
 .capture,
@@ -635,7 +674,6 @@ html:has(.notice) {
     .fields > button,
     .field-row > button,
     .capture > button,
-    .process > button,
     main > .inline,
     main > .inline > button,
     .group > .inline,
@@ -647,8 +685,7 @@ html:has(.notice) {
     .capture label,
     .process label,
     .field-row > input,
-    .field-row > select,
-    .process > select {
+    .field-row > select {
         flex: 1 1 100%;
     }
 

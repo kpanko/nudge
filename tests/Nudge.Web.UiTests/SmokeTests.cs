@@ -172,6 +172,7 @@ public sealed class SmokeTests
         // Process it to a next action, with a double click: the form
         // is gone after the first, and the second must still be
         // answered as the first, with no error shown.
+        await row.GetByText("Organize").ClickAsync();
         await row.GetByLabel("List").SelectOptionAsync("NextAction");
         await Button(row, "Process").DblClickAsync();
         await ExpectNoticeAsync(page, "Edit item");

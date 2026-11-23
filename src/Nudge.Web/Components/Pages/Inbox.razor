@@ -30,35 +30,49 @@ else
         {
             <ItemRow Item="item">
                 <ActionForm Name="@($"process-{item.Id:N}")"
-                            Action="(form, key) => ProcessAsync(item, form, key)"
+                            Action="(form, key) => TryProcessAsync(item, form, key)"
                             Then="/inbox"
                             Class="process">
-                    <select name="list" aria-label="List">
-                        @foreach (var list in Lists)
-                        {
-                            <option value="@list"
-                                    selected="@(list == ItemState.NextAction)">
-                                @Words.List(list)
-                            </option>
-                        }
-                    </select>
-                    <select name="projectId" aria-label="Project">
-                        <option value="">No project</option>
-                        @foreach (var project in _projects)
-                        {
-                            <option value="@project.Id"
-                                    selected="@(project.Id == item.Project?.Id)">
-                                @project.Name
-                            </option>
-                        }
-                    </select>
-                    <label>
-                        Defer until
-                        <input type="date"
-                               name="deferUntil"
-                               value="@Words.Date(item.DeferUntil)" />
-                    </label>
-                    <button type="submit">Process</button>
+                    @* Inside the form, so that ActionForm's error comes
+                       after the disclosure and shows even when closed. *@
+                    <details class="organize"
+                             open="@(item.Id == _refused)">
+                        <summary>Organize</summary>
+                        <div class="field-row">
+                            <label>
+                                List
+                                <select name="list">
+                                    @foreach (var list in Lists)
+                                    {
+                                        <option value="@list"
+                                                selected="@(list == ItemState.NextAction)">
+                                            @Words.List(list)
+                                        </option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                Project
+                                <select name="projectId">
+                                    <option value="">No project</option>
+                                    @foreach (var project in _projects)
+                                    {
+                                        <option value="@project.Id"
+                                                selected="@(project.Id == item.Project?.Id)">
+                                            @project.Name
+                                        </option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                Defer until
+                                <input type="date"
+                                       name="deferUntil"
+                                       value="@Words.Date(item.DeferUntil)" />
+                            </label>
+                            <button type="submit">Process</button>
+                        </div>
+                    </details>
                 </ActionForm>
             </ItemRow>
         }
@@ -77,6 +91,10 @@ else
     private IReadOnlyList<Item> _items = [];
     private IReadOnlyList<Project> _projects = [];
 
+    /// <summary>The item whose processing was just refused: its
+    /// controls stay open so the owner can correct them.</summary>
+    private Guid? _refused;
+
     protected override async Task OnInitializedAsync()
     {
         _items = await Queries.ListAsync(ItemState.Inbox);
@@ -88,6 +106,20 @@ else
         string key)
     {
         return Writes.CaptureAsync(key, form["title"].ToString().Trim());
+    }
+
+    private async Task<WebWriteResult> TryProcessAsync(
+        Item item,
+        IFormCollection form,
+        string key)
+    {
+        var result = await ProcessAsync(item, form, key);
+        if (result.Error is not null)
+        {
+            _refused = item.Id;
+        }
+
+        return result;
     }
 
     /// <summary>Moves an item out of the inbox: onto a list, into a

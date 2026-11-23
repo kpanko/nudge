@@ -14,7 +14,7 @@ namespace Nudge.Web.UiTests;
 public sealed class PhoneLayoutTests
 {
     /// <summary>What is wrong with the page, one line each.</summary>
-    private const string Problems = """
+    internal const string Problems = """
         () => {
           const problems = [];
           const root = document.documentElement;
@@ -50,7 +50,7 @@ public sealed class PhoneLayoutTests
           }
 
           const controls = document.querySelectorAll(
-            'button, select, textarea, nav.views a,'
+            'button, select, textarea, summary, nav.views a,'
             + ' input:not([type=hidden])');
           for (const control of controls) {
             if (!control.getClientRects().length) {
