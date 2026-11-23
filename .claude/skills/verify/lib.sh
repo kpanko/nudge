@@ -426,8 +426,12 @@ _nv_app_environment() {
             "TMPDIR=$tmp"
         )
         # Machine setup the runtime itself may need on a minimal VM.
+        # An if, not `[ ] &&`: an unset last name must not make the
+        # function return 1 and refuse the launch.
         for name in DOTNET_ROOT DOTNET_SYSTEM_GLOBALIZATION_INVARIANT; do
-            [ -n "${!name:-}" ] && NV_APP_ENV+=("$name=${!name}")
+            if [ -n "${!name:-}" ]; then
+                NV_APP_ENV+=("$name=${!name}")
+            fi
         done
     fi
 }
