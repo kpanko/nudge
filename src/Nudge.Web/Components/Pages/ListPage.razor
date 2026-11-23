@@ -1,0 +1,41 @@
+@page "/waiting"
+@page "/someday"
+@inject UiQueries Queries
+@inject NavigationManager Navigation
+
+@* The two lists that are only looked over: waiting for and
+   someday/maybe. *@
+<PageTitle>@Words.List(_state) - Nudge</PageTitle>
+
+<h1>@Words.List(_state)</h1>
+
+@if (_items.Count == 0)
+{
+    <p class="empty">Nothing here.</p>
+}
+else
+{
+    <ul class="items">
+        @foreach (var item in _items)
+        {
+            <ItemRow Item="item" />
+        }
+    </ul>
+}
+
+@code {
+    private ItemState _state;
+    private IReadOnlyList<Item> _items = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri)
+            .Split('?', '#')[0];
+        _state = path
+                .TrimEnd('/')
+                .Equals("someday", StringComparison.OrdinalIgnoreCase)
+            ? ItemState.Someday
+            : ItemState.WaitingFor;
+        _items = await Queries.ListAsync(_state);
+    }
+}

@@ -1,9 +1,13 @@
 using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -24,13 +28,14 @@ internal sealed partial class WebUiHost : IDisposable
 {
     public const string OwnerEmail = "owner@example.test";
     public const string OwnerSubject = "100000000000000000001";
-    public const string ClientId = "nudge-tests.apps.example.test";
+    public const string ClientId = FakeGoogle.ClientId;
     public const string ClientSecret = "not-a-real-secret";
 
     private static readonly IReadOnlyDictionary<string, string?> NoSettings =
         new Dictionary<string, string?>();
 
     private readonly WebApplicationFactory<Program> _app;
+    private string? _token;
 
     /// <param name="settings">Settings to use instead of, or besides,
     /// the configured sign-in; a null value removes one.</param>
@@ -42,7 +47,8 @@ internal sealed partial class WebUiHost : IDisposable
     public WebUiHost(
         IReadOnlyDictionary<string, string?>? settings = null,
         bool configured = true,
-        bool fakeGoogle = true)
+        bool fakeGoogle = true,
+        DateTimeOffset? now = null)
     {
         var all = new Dictionary<string, string?>();
         if (configured)
@@ -57,7 +63,10 @@ internal sealed partial class WebUiHost : IDisposable
             all[key] = value;
         }
 
-        Factory = new NudgeWebFactory();
+        Factory = new NudgeWebFactory
+        {
+            Clock = now is { } fixedNow ? new FixedClock(fixedNow) : null,
+        };
         _app = Factory.WithWebHostBuilder(
             builder =>
             {
@@ -221,6 +230,107 @@ internal sealed partial class WebUiHost : IDisposable
             TimeProvider.System);
         Assert.Equal(0, exit);
         return output.ToString().Trim();
+    }
+
+    /// <summary>
+    /// Calls the API with a token made for the test, to set up data
+    /// or to read an item as the API shows it. Returns the status
+    /// and the body, parsed when it is JSON.
+    /// </summary>
+    public async Task<(HttpStatusCode Status, JsonNode? Body)> ApiAsync(
+        string method,
+        string path,
+        string? json = null)
+    {
+        _token ??= await CreateTokenAsync("ui-tests");
+        var reply = await SendAsync(
+            new HttpMethod(method),
+            path,
+            json is null
+                ? null
+                : new StringContent(json, Encoding.UTF8, "application/json"),
+            withCookies: false,
+            authorization: $"Bearer {_token}");
+        var text = await reply.Content.ReadAsStringAsync();
+        return (
+            reply.StatusCode,
+            text.Length == 0 ? null : JsonNode.Parse(text));
+    }
+
+    /// <summary>Makes an item through the API and returns its id.
+    /// </summary>
+    public async Task<Guid> CreateItemAsync(string json)
+    {
+        var (status, body) = await ApiAsync("POST", "/api/items", json);
+        Assert.True(status == HttpStatusCode.Created, body?.ToJsonString());
+        return Guid.Parse(body!["data"]!["id"]!.GetValue<string>());
+    }
+
+    /// <summary>Makes a project or a context through the API and
+    /// returns its id.</summary>
+    public async Task<Guid> CreateAsync(
+        string path,
+        string name)
+    {
+        var (status, body) = await ApiAsync(
+            "POST",
+            path,
+            JsonSerializer.Serialize(new { name }));
+        Assert.True(status == HttpStatusCode.Created, body?.ToJsonString());
+        return Guid.Parse(body!["data"]!["id"]!.GetValue<string>());
+    }
+
+    /// <summary>The item as the API shows it, as JSON text; null if
+    /// it is not there (or deleted).</summary>
+    public async Task<string?> ItemJsonAsync(Guid id)
+    {
+        var (status, body) = await ApiAsync("GET", $"/api/items/{id}");
+        return status == HttpStatusCode.NotFound ? null : body!.ToJsonString();
+    }
+
+    /// <summary>The newest change in the log: its number, source and
+    /// description; null if there is none.</summary>
+    public (long Id, string Source, string Description)? LastChange()
+    {
+        using var connection = new SqliteConnection(
+            $"Data Source={Factory.DatabasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT Id, Source, Description FROM Changes"
+            + " ORDER BY Id DESC LIMIT 1;";
+        using var reader = command.ExecuteReader();
+        return reader.Read()
+            ? (reader.GetInt64(0), reader.GetString(1), reader.GetString(2))
+            : null;
+    }
+
+    /// <summary>The method and path the newest idempotency record
+    /// was kept under; null if there is none.</summary>
+    public (string Method, string Path)? LastRecord()
+    {
+        using var connection = new SqliteConnection(
+            $"Data Source={Factory.DatabasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT Method, Path FROM IdempotencyRecords"
+            + " ORDER BY rowid DESC LIMIT 1;";
+        using var reader = command.ExecuteReader();
+        return reader.Read()
+            ? (reader.GetString(0), reader.GetString(1))
+            : null;
+    }
+
+    /// <summary>How many rows a table has.</summary>
+    public long Count(string table)
+    {
+        using var connection = new SqliteConnection(
+            $"Data Source={Factory.DatabasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(*) FROM \"{table}\";";
+        return (long)command.ExecuteScalar()!;
     }
 
     /// <summary>The query of an address, decoded.</summary>

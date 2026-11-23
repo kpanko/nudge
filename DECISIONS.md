@@ -1188,9 +1188,9 @@ under the application name `Nudge`; when it is unset (tests,
 `dotnet run`) the keys live in an in-memory key repository, so the
 default folder in the user's profile (or `~/.aspnet` in a
 container) is neither read nor written. Problem-details status
-pages now apply only to the API side (`/api`, `/healthz`, `/openapi`); a path of the web UI
-that matches nothing needs the owner signed in, then shows the
-`/not-found` page.
+pages now apply only to the API side (`/api`, `/healthz`,
+`/openapi`); a path of the web UI that matches nothing needs the
+owner signed in, then shows the `/not-found` page.
 
 **Alternatives considered:** Keys in the database (they would fall
 under the change log's rules). A catch-all fallback route for the
@@ -1201,5 +1201,120 @@ turned their requests without a content type into 404s).
 Fly's proxy, the forwarded proto must be restricted to that proxy.
 The keys are not encrypted at rest and are not in the Litestream
 backup; losing them only signs the owner out.
+
+---
+
+## 2026-11-16 The web UI's writes run the API's work through the runner's core
+
+**Context:** Every change must be logged with its source, undoable,
+and safe to send twice. The API's write endpoints already guarantee
+this through `WriteRunner`, but the runner read its input from an
+HTTP request and the handlers read ids from the route through the
+`HttpContext`.
+
+**Decision:** `WriteRunner` is split. `ExecuteAsync` takes a
+`WriteRequest` already read and checked (source, description, body,
+the properties it names, route values, dry run, key, method, path,
+fingerprint) and does what the runner always did: set the source,
+take the transaction before reading, run the work, save, roll back a
+dry run, keep the idempotency record, commit. `RunAsync`, the API's
+adapter, reads and checks the request as before and calls it; the
+API's answers are unchanged. `Write<TBody>` takes route values
+instead of the `HttpContext`. The handlers in `ItemEndpoints` and
+the others are `internal`, and `WebWrites` calls those same
+functions, each in a DI scope of its own as an API request would
+be, with the source `web`, the API endpoint's description, method
+and path, and a key from the form. Each form carries a key made when
+the page is rendered (`web-` and a GUID), so a form sent twice is
+carried out once; the same key with other values is refused on the
+page. The key's fingerprint is taken from the posted form itself
+(the page's path and every field but the antiforgery token), so a
+step after authorization and antiforgery (`UseUiReplay`) can
+recognise a form sent again with a key already carried out and
+answer it as the first time, even when that write took the form off
+the page (Blazor would otherwise refuse a post for a form it no
+longer renders). It only reads the record. Where to go after a
+write is a hidden field of the form, always reduced to a path on
+this site. Pages are rendered and forms handled by Blazor's static
+server rendering: a form posts back to its page with the
+antiforgery token, the write runs, and the browser is sent back to
+the page with `?change=<number>`, where a notice offers to undo it.
+A refusal is shown in the form, not as problem details.
+
+**Alternatives considered:** The browser calling `/api` with the
+cookie (opens the API to cross-site writes). Writes of the UI's own
+that call `Nudge.Core` directly (a second write path to keep
+honest). Blazor's `[SupplyParameterFromForm]` binding (one fixed
+form name per component, which repeated forms in a list do not fit).
+
+**Consequences:** One write path for the API and the UI. The UI's
+idempotency records look like the API's, under keys that start with
+`web-`. Undo from the web UI is the same undo.
+
+---
+
+## 2026-11-16 What "weekly review" and "missed reminders" mean for now
+
+**Context:** M3 asks for both views. Neither has support in
+`Nudge.Core`: there is no record of reviews, and no record of which
+reminders the phone showed or the owner acknowledged (that is M5).
+
+**Decision:** The weekly review is a read-only checklist: the number
+of items in the inbox, projects that have no open next action of
+their own (items in projects under them do not count), waiting for,
+someday/maybe, open items due before the owner's today, and those
+due today or in the six days after it. Missed reminders are, for
+now, every reminder of an open item whose `FireTime` for the item as
+it stands (the current occurrence, for a repeating item) is not
+after now; a reminder of an item without a due date and a relative
+offset never fires, so is never missed. Next actions leave out items
+deferred past the owner's today and list an item under each of its
+contexts, by name, with those without a context last. The page says
+the missed list is provisional.
+
+**Alternatives considered:** Storing "last reviewed" dates
+(nothing asks for them yet). Waiting for M5 for missed reminders
+(the view would be empty until then).
+
+**Consequences:** Until M5 adds acknowledgement, a missed reminder
+stays listed until the item is completed or rescheduled or the
+reminder removed. M5 must replace the definition, not add to it.
+
+---
+
+## 2026-11-16 The browser smoke test runs in CI, over HTTPS, with a fake Google
+
+**Context:** M3 asks for a Playwright smoke test in CI. Google
+sign-in cannot be used in a test, the app's cookies are Secure only,
+and `dotnet test` must stay green on a machine without a browser.
+
+**Decision:** A project of its own, `tests/Nudge.Web.UiTests`, with
+`Microsoft.Playwright` and xunit. It serves the real app with
+`WebApplicationFactory.UseKestrel` on a free port of `localhost`,
+over HTTPS with a self-signed certificate made for the run (the
+browser is told to accept it), on a temporary database. Sign-in goes
+through the app's real OpenID Connect handler, pointed at the fake
+Google the web tests use (its file is linked, not copied): the
+fake's sign-in page is served by the test on the app's host, through
+a startup filter in the test project, and posts a code straight
+back. One test walks the owner's day in Chromium, by clicking, and
+checks that no step was a full page load. It runs only with
+`NUDGE_PLAYWRIGHT=1` and is reported as skipped otherwise. CI
+installs Chromium with the built project's `playwright.ps1` after
+the build, sets the variable for the test step, and uploads a trace,
+a screenshot, the console errors and the app's warnings when it
+fails.
+
+**Alternatives considered:** Plain HTTP (the app's antiforgery,
+with its cookie set to Secure only, refuses every request that is
+not HTTPS). A Playwright route standing in for Google (routes do not
+see a request reached by a redirect). The smoke test inside
+`Nudge.Web.Tests` (every run of the web tests would need the
+Playwright package and its browser install).
+
+**Consequences:** The test needs a browser download in CI (about
+200 MB with its dependencies). Running the app with `dotnet run` on
+the `http` launch profile shows a 500 on every page for the same
+antiforgery reason; use the `https` profile.
 
 ---

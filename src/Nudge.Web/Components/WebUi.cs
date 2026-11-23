@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Nudge.Web.Auth;
 
 namespace Nudge.Web.Components;
@@ -83,6 +84,9 @@ public static class WebUi
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             });
         services.AddRazorComponents();
+        services.AddHttpContextAccessor();
+        services.AddScoped<UiQueries>();
+        services.AddScoped<WebWrites>();
         services.AddOwnerAuthentication(signIn);
         return services;
     }
@@ -137,6 +141,75 @@ public static class WebUi
 
                 return next(context);
             });
+    }
+
+    /// <summary>
+    /// Answers a form of the web UI sent again with a key already
+    /// carried out, the same way as the first time: back to where
+    /// the first went, with its change to undo. Blazor would refuse
+    /// it once the first write had taken the form off the page (an
+    /// item processed, completed or deleted). Only for a page that
+    /// needs the owner, the owner signed in, a valid antiforgery
+    /// token, and a key whose record has the same fingerprint (see
+    /// <see cref="WebWrites.FormFingerprint"/>); anything else goes
+    /// on to the page, which writes through the runner as ever. It
+    /// reads the record and writes nothing. It goes after
+    /// authorization and antiforgery.
+    /// </summary>
+    public static IApplicationBuilder UseUiReplay(
+        this IApplicationBuilder app)
+    {
+        return app.Use(
+            async (context, next) =>
+            {
+                if (await ReplayAsync(context) is { } target)
+                {
+                    context.Response.Redirect(target);
+                    return;
+                }
+
+                await next(context);
+            });
+    }
+
+    private static async Task<string?> ReplayAsync(HttpContext context)
+    {
+        var request = context.Request;
+        // The antiforgery result first: the form cannot be read at
+        // all when the token is not valid.
+        if (!HttpMethods.IsPost(request.Method)
+            || !IsUiPath(request.Path)
+            || context.GetEndpoint()?.Metadata
+                .GetMetadata<Microsoft.AspNetCore.Components.Endpoints
+                    .ComponentTypeMetadata>() is null
+            || !OwnerAuthentication.IsOwner(context.User)
+            || context.Features
+                .Get<Microsoft.AspNetCore.Antiforgery
+                    .IAntiforgeryValidationFeature>() is not { IsValid: true }
+            || !request.HasFormContentType)
+        {
+            return null;
+        }
+
+        var form = await request.ReadFormAsync(context.RequestAborted);
+        if (WebWrites.RecordKey(form["key"]) is not { } key)
+        {
+            return null;
+        }
+
+        var record = await context.RequestServices
+            .GetRequiredService<Nudge.Web.Data.NudgeDbContext>()
+            .IdempotencyRecords
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                r => r.Key == key,
+                context.RequestAborted);
+        return record is not null
+            && record.Fingerprint == WebWrites.FormFingerprint(
+                request,
+                form)
+            ? WebWrites.Target(form["then"], record.ChangeId)
+            : null;
     }
 
     private static readonly Endpoint NotFound = new(

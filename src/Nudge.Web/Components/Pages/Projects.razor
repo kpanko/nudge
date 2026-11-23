@@ -1,0 +1,79 @@
+@page "/projects"
+@inject UiQueries Queries
+@inject WebWrites Writes
+
+<PageTitle>Projects - Nudge</PageTitle>
+
+<h1>Projects</h1>
+
+@if (_lines.Count == 0)
+{
+    <p class="empty">No projects.</p>
+}
+else
+{
+    <ul class="projects">
+        @foreach (var line in _lines)
+        {
+            <li style="@Indent(line)">
+                <a href="@($"/projects/{line.Project.Id}")">@line.Project.Name</a>
+                <span class="facts">
+                    <span class="fact">@line.OpenItems open</span>
+                    @if (!line.HasNextAction)
+                    {
+                        <span class="fact warn">no next action</span>
+                    }
+                </span>
+            </li>
+        }
+    </ul>
+}
+
+<ActionForm Name="new-project" Action="CreateAsync" Class="inline">
+    <label>
+        New project
+        <input type="text" name="name" required autocomplete="off" />
+    </label>
+    <select name="parentId" aria-label="Under">
+        <option value="">At the top</option>
+        @foreach (var line in _lines)
+        {
+            <option value="@line.Project.Id">@line.Project.Name</option>
+        }
+    </select>
+    <button type="submit">Add project</button>
+</ActionForm>
+
+@code {
+    private IReadOnlyList<ProjectLine> _lines = [];
+
+    /// <summary>In the invariant culture: 1.5rem, never 1,5rem.
+    /// </summary>
+    private static string Indent(ProjectLine line)
+    {
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"margin-left: {line.Depth * 1.5}rem");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _lines = await Queries.ProjectTreeAsync();
+    }
+
+    private Task<WebWriteResult> CreateAsync(
+        IFormCollection form,
+        string key)
+    {
+        if (!Words.TryGuid(form["parentId"], out var parentId))
+        {
+            return Task.FromResult(
+                WebWriteResult.Invalid("Choose a project to put it under."));
+        }
+
+        return Writes.CreateProjectAsync(
+            key,
+            form["name"].ToString().Trim(),
+            parentId);
+    }
+}
