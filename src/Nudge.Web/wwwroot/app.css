@@ -524,8 +524,13 @@ a.fact {
 }
 
 /* Keyboard focus must not land behind the bar. */
+/* Room for the notice at its tallest, so that a control scrolled to
+   by keyboard is not under it: the text at its cap, Undo wrapped
+   below it (the row gap and its height), the padding, the border,
+   the sticky offset, and space for the focus ring. */
 html:has(.notice) {
-    scroll-padding-bottom: calc(30vh + 2 * var(--space-5));
+    scroll-padding-bottom: calc(
+        30vh + var(--control-height) + 5 * var(--space-2) + 2px);
 }
 
 .hint,
