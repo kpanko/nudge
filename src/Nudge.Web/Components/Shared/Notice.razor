@@ -4,8 +4,10 @@
 @* After a write, what was done, and a way to take it back. *@
 @if (_change is not null)
 {
+    @* Focusable, so that text past its height cap can be scrolled
+       by keyboard: Safari does not do that for a scroll box. *@
     <div class="notice" role="status">
-        <span>
+        <span tabindex="0">
             @(_change.Undoes is null ? "Done" : "Undone"):
             @_change.Description (change @_change.Id).
         </span>
