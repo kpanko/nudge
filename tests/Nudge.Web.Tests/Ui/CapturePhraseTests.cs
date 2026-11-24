@@ -110,6 +110,50 @@ public sealed class CapturePhraseTests : IAsyncLifetime
         Assert.Null(read.Repeat);
     }
 
+    // The page highlights with this pattern, so it has to pick out
+    // the same words the server takes off the title.
+    [Theory]
+    [InlineData("every friday eat a snack", "every friday")]
+    [InlineData("every week on friday eat", "every week on friday")]
+    [InlineData("every week on call", "every week")]
+    [InlineData("every 2 weeks on monday pay", "every 2 weeks on monday")]
+    [InlineData("every 3 months oil it", "every 3 months")]
+    [InlineData("Tomorrow call the bank", "Tomorrow")]
+    [InlineData("friday night dinner", "friday")]
+    public void Words_AreWhatReadTakesOffTheTitle(
+        string text,
+        string words)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(
+            text,
+            CapturePhrase.Words,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        Assert.Equal(words, match.Value);
+        Assert.Equal(
+            text[words.Length..].Trim(),
+            CapturePhrase.Read(text, Today).Title);
+    }
+
+    [Theory]
+    [InlineData("/inbox", "capture")]
+    [InlineData("/next", "quick-capture")]
+    public async Task Capture_WithTheDateDismissed_IsAPlainTitle(
+        string path,
+        string form)
+    {
+        var page = await UiPage.OpenAsync(_host, path);
+
+        await page.SubmitAsync(
+            form,
+            ("title", "friday night dinner"),
+            (CapturePhrase.PlainField, "1"));
+
+        var inbox = await UiPage.OpenAsync(_host, "/inbox");
+        Assert.Equal(["friday night dinner"], inbox.Texts("li.item > a"));
+        Assert.Empty(inbox.Texts("li.item .fact"));
+    }
+
     [Theory]
     [InlineData("/inbox", "capture")]
     [InlineData("/next", "quick-capture")]

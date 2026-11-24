@@ -20,8 +20,23 @@ public sealed record CapturedText(
 /// </summary>
 public static class CapturePhrase
 {
+    /// <summary>The hidden field the page sets to 1 when the owner
+    /// said the opening words are not a date.</summary>
+    public const string PlainField = "plainTitle";
+
     private const string Days =
         "sunday|monday|tuesday|wednesday|thursday|friday|saturday";
+
+    /// <summary>The opening date words, for the page to highlight as
+    /// they are typed. Valid in both .NET and JavaScript.</summary>
+    public const string Words =
+        @"^(?:every\s+(?:day|weekday|month|year|"
+        + Days
+        + @"|(?:week|2\s+weeks)(?:\s+on\s+(?:"
+        + Days
+        + @"))?|(?:3|6)\s+months)|today|tomorrow|"
+        + Days
+        + @")(?=\s)";
 
     private const string Weekdays = "MO,TU,WE,TH,FR";
 
@@ -42,6 +57,18 @@ public static class CapturePhrase
     private static readonly Regex OneOff = new(
         $@"^(?<when>today|tomorrow|{Days})\s+(?<title>\S.*)$",
         Options);
+
+    /// <summary>Reads a sent capture form, keeping the line as a plain
+    /// title if the owner dismissed its date words.</summary>
+    public static CapturedText FromForm(
+        IFormCollection form,
+        DateOnly today)
+    {
+        var text = form["title"].ToString().Trim();
+        return form[PlainField] == "1"
+            ? new CapturedText(text, null, null)
+            : Read(text, today);
+    }
 
     /// <summary>Reads a trimmed captured line.</summary>
     public static CapturedText Read(

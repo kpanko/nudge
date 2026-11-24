@@ -74,8 +74,10 @@
 - Capture date words: on branch
   `claude/recurring-task-due-date-blank-1d7aa7`, in a pull request
   awaiting the owner's review. "every friday eat a snack" now gets
-  the title "eat a snack", a due date and a repeat. See DECISIONS.md,
-  2026-11-24. Not checked on the deployed app.
+  the title "eat a snack", a due date and a repeat. The date words
+  show in bold and color as typed, and a backspace right after them
+  keeps them as text. See DECISIONS.md, 2026-11-24. Checked in
+  desktop Chromium only; not on a phone keyboard or the deployed app.
 
 ### The deploy
 The merge to main started a deploy that waits for approval of the

@@ -6,13 +6,11 @@
    phone does not open its keyboard on every navigation. A refused
    title stays in the field, to be corrected. *@
 <ActionForm Name="@FormName" Action="CaptureAsync" Class="quick-add">
-    <input type="text"
-           name="title"
-           required
-           autocomplete="off"
-           aria-label="Capture to inbox"
-           placeholder="Capture..."
-           value="@_refused" />
+    <CaptureInput Value="@_refused"
+                  required
+                  autocomplete="off"
+                  aria-label="Capture to inbox"
+                  placeholder="Capture..." />
     <button type="submit" aria-label="Add to inbox">Add</button>
 </ActionForm>
 
@@ -57,7 +55,7 @@
         var title = form["title"].ToString();
         var result = await Writes.CaptureAsync(
             key,
-            CapturePhrase.Read(title.Trim(), Queries.Today()));
+            CapturePhrase.FromForm(form, Queries.Today()));
         if (result.Error is not null)
         {
             _refused = title;

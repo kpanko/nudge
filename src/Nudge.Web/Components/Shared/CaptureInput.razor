@@ -1,0 +1,21 @@
+@* The capture box. capture.js highlights the date words as they are
+   typed and sets the hidden field when a backspace dismisses them.
+   Without the script, the server still reads the words. *@
+<span class="capture-field">
+    <input type="text"
+           name="title"
+           data-capture-words="@CapturePhrase.Words"
+           value="@Value"
+           @attributes="Attributes" />
+    <span class="capture-mirror" aria-hidden="true"></span>
+    <span class="capture-status" role="status"></span>
+    <input type="hidden" name="@CapturePhrase.PlainField" value="" />
+</span>
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? Attributes { get; set; }
+}

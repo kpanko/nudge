@@ -10,11 +10,7 @@
 <ActionForm Name="capture" Action="CaptureAsync" Then="/inbox" Class="capture">
     <label>
         Capture
-        <input type="text"
-               name="title"
-               required
-               autofocus
-               autocomplete="off" />
+        <CaptureInput required autofocus autocomplete="off" />
     </label>
     <button type="submit">Add to inbox</button>
 </ActionForm>
@@ -107,9 +103,7 @@ else
     {
         return Writes.CaptureAsync(
             key,
-            CapturePhrase.Read(
-                form["title"].ToString().Trim(),
-                Queries.Today()));
+            CapturePhrase.FromForm(form, Queries.Today()));
     }
 
     private async Task<WebWriteResult> TryProcessAsync(
