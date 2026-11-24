@@ -57,9 +57,13 @@
   2026-11-16 explain the design; each pull request description has
   what was checked and its review comments.
 - Web UI improvements, requested by the owner on 2026-11-23: six
-  stacked pull requests, all open and none merged. Each has base
-  `main` and contains the ones before it; its description links to
-  a diff of its own changes.
+  stacked pull requests. All six were merged on 2026-11-24, at the
+  owner's request, by merging #18 with a merge commit (a158067);
+  GitHub marked #13 to #17 merged with it. CI passed on the merge and
+  the owner approved the deploy, which succeeded. Still to try on
+  the deployed app: sign out, choose "Sign in again", and confirm
+  Google offers a choice of account; and the new layout on the real
+  phone.
   1. #13 phone layout and visual style
      https://github.com/kpanko/nudge/pull/13
   2. #14 confirmation and Undo stay on screen
@@ -73,11 +77,6 @@
   6. #18 Google's account picker on "sign in again"
      https://github.com/kpanko/nudge/pull/18
 
-  To merge: use merge commits, not squash, because the later
-  branches contain the earlier commits. Merge in the order above,
-  or merge #18 alone to bring in all six with one deploy. Each
-  merge to `main` starts a deploy that waits for approval; approve
-  only the newest.
   Checked: build and all tests passed locally on each branch,
   browser tests included (910 tests on #18 after the fixes below).
   CI passed on all six, also on the new commits of 2026-11-24.
@@ -107,8 +106,9 @@
   The threads are not answered or resolved on GitHub. CodeRabbit
   has no review on #15 or #18. The descriptions of #13, #14 and #17
   say what was fixed; #15, #16 and #18 were not edited.
-  The deploy job for 5608b0d, a STATUS.md-only commit, is waiting
-  for approval and need not be approved.
+  Deploy jobs for STATUS.md-only commits on main (5608b0d, c26fcc5
+  and this file's later updates) wait for approval and need not be
+  approved.
 - PR #12, "Add a verify skill that drives the real app", is open
   and was not tracked here before 2026-11-24. Not looked at in that
   session.
@@ -268,9 +268,8 @@ approve it.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Web UI PRs #13 to #18: review comments are fixed. Merge #18
-   with a merge commit (or all six in order), approve the newest
-   deploy, and try the result on the phone (see "In Progress").
+1. Web UI: merged and deployed on 2026-11-24. Try it on the phone,
+   and check the account picker (see "In Progress").
 2. Confirm the two choices in the CodeRabbit fixes (see
    "Blockers / Open Questions"); both can still be changed by a
    new commit on main.
