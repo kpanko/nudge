@@ -94,15 +94,20 @@ public sealed class WebWrites(
 
     public Task<WebWriteResult> CaptureAsync(
         string key,
-        string? title)
+        CapturedText captured)
     {
         return RunAsync<ItemCreate, ItemView>(
             key,
             "POST",
             "/api/items",
             "Create item",
-            new ItemCreate { Title = title ?? "" },
-            ["title"],
+            new ItemCreate
+            {
+                Title = captured.Title,
+                Due = captured.Due,
+                Repeat = captured.Repeat,
+            },
+            ["title", "due", "repeat"],
             [],
             ItemEndpoints.CreateAsync);
     }

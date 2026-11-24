@@ -1335,3 +1335,35 @@ did the first time. Every other form is still replayed by the
 middleware.
 
 ---
+
+## 2026-11-24 Capture reads basic date words at the start of the line
+
+**Context:** "every friday eat a snack" was saved whole as a title,
+with no due date. VISION.md allows natural-language dates only as
+far as the basics.
+
+**Decision:** The owner chose repeats and one-off dates. A capture
+in the web UI reads, at the start of the line and only with a title
+after it: every day, weekday, week, month or year; every and a
+weekday name; every week or 2 weeks, optionally on a weekday; every
+3 or 6 months; today, tomorrow and a weekday name. The words leave
+the title. Repeats are on a fixed schedule. A weekday means the next
+one, today included. The API takes titles literally, as before.
+
+**Alternatives considered:** Repeats only (fewer misread titles).
+Matching anywhere in the line (many more misread titles).
+
+The owner also decided how a misread is avoided: the box shows the
+words it reads as a date in bold and another color as they are
+typed, and a backspace right after them means "this is not a date".
+The text stays, and the form sends `plainTitle=1`. The page takes
+its pattern from the server (`CapturePhrase.Words`), so there is one
+list of phrases. The bold is a text stroke on a copy laid over the
+input, because a bolder font is wider and would misplace the caret.
+
+**Consequences:** This is the web UI's first script of its own,
+`capture.js`. Without it the words are still read, with no highlight
+and no way to dismiss them. A title that really starts with such a
+word needs that backspace, or Undo afterwards.
+
+---

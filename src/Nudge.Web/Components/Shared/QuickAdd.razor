@@ -1,17 +1,16 @@
 @inject WebWrites Writes
+@inject UiQueries Queries
 
 @* Capture from any view: the same form and write as the inbox's, and
    back to this page with the notice. Never autofocused, so that a
    phone does not open its keyboard on every navigation. A refused
    title stays in the field, to be corrected. *@
 <ActionForm Name="@FormName" Action="CaptureAsync" Class="quick-add">
-    <input type="text"
-           name="title"
-           required
-           autocomplete="off"
-           aria-label="Capture to inbox"
-           placeholder="Capture..."
-           value="@_refused" />
+    <CaptureInput Value="@_refused"
+                  required
+                  autocomplete="off"
+                  aria-label="Capture to inbox"
+                  placeholder="Capture..." />
     <button type="submit" aria-label="Add to inbox">Add</button>
 </ActionForm>
 
@@ -54,7 +53,9 @@
         string key)
     {
         var title = form["title"].ToString();
-        var result = await Writes.CaptureAsync(key, title.Trim());
+        var result = await Writes.CaptureAsync(
+            key,
+            CapturePhrase.FromForm(form, Queries.Today()));
         if (result.Error is not null)
         {
             _refused = title;
