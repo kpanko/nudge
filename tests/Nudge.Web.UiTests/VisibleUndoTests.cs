@@ -113,6 +113,70 @@ public sealed class VisibleUndoTests
         await Expect(row).ToHaveCountAsync(1);
     }
 
+    /// <summary>Gives the notice text long enough to reach its cap
+    /// and wrap Undo below it, then the notice's height, with its
+    /// sticky offset, and the page's scroll padding at the bottom.
+    /// </summary>
+    private const string TallestNotice = """
+        () => {
+          const notice = document.querySelector('.notice');
+          notice.querySelector('span').textContent =
+            'Invented notice text '.repeat(200);
+          const offset = parseFloat(getComputedStyle(notice).bottom);
+          const reserve = parseFloat(
+            getComputedStyle(document.documentElement)
+              .scrollPaddingBottom);
+          return [notice.getBoundingClientRect().height + offset, reserve];
+        }
+        """;
+
+    // At 320 px with a larger root font, a long notice wraps Undo
+    // onto a row of its own: the scroll padding still covers it, so
+    // a control scrolled to by keyboard is not under the notice. Its
+    // text can be scrolled by keyboard, being focusable.
+    [PlaywrightFact]
+    public async Task TallestNotice_IsCoveredByTheScrollPadding()
+    {
+        await using var host = await BrowserHost.StartAsync();
+        await PhoneLayoutTests.SeedAsync(host);
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(
+            new BrowserTypeLaunchOptions { Headless = true });
+        await using var context = await browser.NewContextAsync(
+            new BrowserNewContextOptions
+            {
+                BaseURL = host.BaseAddress,
+                IgnoreHTTPSErrors = true,
+                ViewportSize = new ViewportSize { Width = 320, Height = 600 },
+                IsMobile = true,
+                HasTouch = true,
+            });
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/next?change=1");
+        var notice = page.Locator(".notice");
+        await Expect(notice).ToBeVisibleAsync();
+        await page.EvaluateAsync(
+            "() => document.documentElement.style.fontSize = '20px'");
+
+        var sizes = await page.EvaluateAsync<double[]>(TallestNotice);
+        var undo = notice.GetByRole(
+            AriaRole.Button,
+            new LocatorGetByRoleOptions { Name = "Undo", Exact = true });
+        var text = await notice.Locator("span").BoundingBoxAsync();
+        Assert.True(
+            (await undo.BoundingBoxAsync())!.Y >= text!.Y + text.Height,
+            "Undo did not wrap below the text");
+        Assert.True(
+            sizes[1] >= sizes[0],
+            $"the notice takes {sizes[0]}px; the padding is {sizes[1]}px");
+
+        await notice.Locator("span").FocusAsync();
+        Assert.True(
+            await notice.Locator("span").EvaluateAsync<bool>(
+                "e => document.activeElement === e && e.tabIndex === 0"),
+            "the notice text cannot take keyboard focus");
+    }
+
     /// <summary>Enough invented next actions to scroll a phone.
     /// </summary>
     private static async Task SeedLongListAsync(BrowserHost host)

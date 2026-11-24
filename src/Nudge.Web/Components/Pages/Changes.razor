@@ -10,25 +10,34 @@
     one is itself a change, which can be undone in turn.
 </p>
 
-<table class="changes">
-    <thead>
-        <tr><th>#</th><th>When</th><th>What</th><th>By</th><th></th></tr>
+@* The roles are what a table has anyway; they are spelled out
+   because the phone layout's display rules take a table's own
+   semantics away in some browsers. *@
+<table class="changes" role="table">
+    <thead role="rowgroup">
+        <tr role="row">
+            <th role="columnheader">#</th>
+            <th role="columnheader">When</th>
+            <th role="columnheader">What</th>
+            <th role="columnheader">By</th>
+            <th role="columnheader"></th>
+        </tr>
     </thead>
-    <tbody>
+    <tbody role="rowgroup">
         @foreach (var change in _changes)
         {
-            <tr>
-                <td>@change.Id</td>
-                <td>@Plain.Instant(change.At, Queries.Zone, Queries.Today())</td>
-                <td>
+            <tr role="row">
+                <td role="cell">@change.Id</td>
+                <td role="cell">@Plain.Instant(change.At, Queries.Zone, Queries.Today())</td>
+                <td role="cell">
                     @change.Description
                     @if (change.Undoes is { } undone)
                     {
                         <span class="fact">undoes @undone</span>
                     }
                 </td>
-                <td>@change.Source</td>
-                <td>
+                <td role="cell">@change.Source</td>
+                <td role="cell">
                     <ActionForm Name="@($"undo-{change.Id}")"
                                 Action="Undo(change.Id)"
                                 Class="inline">
