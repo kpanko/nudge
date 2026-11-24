@@ -56,59 +56,8 @@
   under "Blockers / Open Questions" and the DECISIONS.md entries of
   2026-11-16 explain the design; each pull request description has
   what was checked and its review comments.
-- Web UI improvements, requested by the owner on 2026-11-23: six
-  stacked pull requests. All six were merged on 2026-11-24, at the
-  owner's request, by merging #18 with a merge commit (a158067);
-  GitHub marked #13 to #17 merged with it. CI passed on the merge and
-  the owner approved the deploy, which succeeded. Still to try on
-  the deployed app: sign out, choose "Sign in again", and confirm
-  Google offers a choice of account; and the new layout on the real
-  phone.
-  1. #13 phone layout and visual style
-     https://github.com/kpanko/nudge/pull/13
-  2. #14 confirmation and Undo stay on screen
-     https://github.com/kpanko/nudge/pull/14
-  3. #15 cleaner inbox, processing opens per row
-     https://github.com/kpanko/nudge/pull/15
-  4. #16 plain-language dates, repeats and reminders
-     https://github.com/kpanko/nudge/pull/16
-  5. #17 capture from every page
-     https://github.com/kpanko/nudge/pull/17
-  6. #18 Google's account picker on "sign in again"
-     https://github.com/kpanko/nudge/pull/18
-
-  Checked: build and all tests passed locally on each branch,
-  browser tests included (910 tests on #18 after the fixes below).
-  CI passed on all six, also on the new commits of 2026-11-24.
-  Not checked: a real phone (Chromium emulation only), Safari,
-  Firefox, a screen reader, or real Google's account picker. After
-  deploying, sign out, choose "Sign in again", and confirm Google
-  offers a choice of account.
-  Review comments, fixed on 2026-11-24 (the owner asked for the fixes
-  to go on the pull request branches themselves): all seven
-  CodeRabbit threads, on #13, #14, #16 and #17, are fixed. Each fix is
-  on the branch where its finding started, and was merged forward
-  (merge commits, no rebase or force-push) through every later
-  branch. Each was reproduced by a test that failed before the fix:
-  - #13 (91bd5bd): the phone changes table keeps its column names
-    for screen readers (visually hidden header row and explicit
-    table roles), and project chip links are 44 px high on phones
-    (they were 21.5 px).
-  - #14 (04e9795): the scroll padding covers the tallest notice (it
-    was 240 px against a 277 px notice at 320 px with a 20 px root
-    font), and the notice text takes keyboard focus for Safari.
-    This adds one tab stop before Undo.
-  - #17 (be63d43): a capture sent twice from a deleted page now
-    lands on the inbox with Undo both times; the replay middleware
-    leaves the capture form to the page.
-  Merge conflicts on the way: `PhoneLayoutTests.cs` on #15 and
-  `Changes.razor` on #16; both kept both sides.
-  The threads are not answered or resolved on GitHub. CodeRabbit
-  has no review on #15 or #18. The descriptions of #13, #14 and #17
-  say what was fixed; #15, #16 and #18 were not edited.
-  Deploy jobs for STATUS.md-only commits on main (5608b0d, c26fcc5
-  and this file's later updates) wait for approval and need not be
-  approved.
+- Deploy jobs for STATUS.md-only commits on main (5608b0d, c26fcc5,
+  dd6e2c1 and later) wait for approval and need not be approved.
 - PR #12, "Add a verify skill that drives the real app", is open
   and was not tracked here before 2026-11-24. Not looked at in that
   session.
@@ -202,6 +151,29 @@ approve it.
      account, and check that another account is refused.
 
 ## Recently Completed
+- Web UI improvements (2026-11-23 and 2026-11-24): six stacked pull
+  requests, #13 to #18, merged on 2026-11-24 by merging #18 with a
+  merge commit (a158067), and deployed with the owner's approval.
+  #13 phone layout and visual style; #14 notice and Undo stay in
+  view; #15 per-row Organize in the inbox; #16 plain-language
+  dates, repeats and reminders; #17 capture from every page; #18
+  Google's account picker on "sign in again".
+  https://github.com/kpanko/nudge/pull/18
+  - Before merging, all seven CodeRabbit threads (on #13, #14, #16
+    and #17) were fixed on the branch where each started and merged
+    forward, each reproduced first by a test: the phone changes
+    table keeps its column names for screen readers (91bd5bd);
+    project chip links are 44 px high on phones (91bd5bd); the
+    scroll padding covers the tallest notice and the notice text
+    takes keyboard focus for Safari (04e9795); a capture sent twice
+    from a deleted page lands on the inbox both times (be63d43).
+    The threads were not answered or resolved on GitHub.
+  - 910 tests passed locally on #18, browser tests included; CI
+    passed on every branch and on the merge.
+  - The owner confirmed on 2026-11-24 that sign-in works on the
+    deployed app, account picker included. The owner does not want
+    the layout tried on a real phone; only Chromium emulation, no
+    Safari, Firefox or screen reader, was used.
 - Kotlin alarm spike (PR #8, open), the first task of M2.
   `spikes/AlarmSpikeKotlin` is a standalone Gradle project, outside
   `Nudge.sln`, that CI never builds: Kotlin, platform APIs only (no
@@ -268,23 +240,20 @@ approve it.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Web UI: merged and deployed on 2026-11-24. Try it on the phone,
-   and check the account picker (see "In Progress").
-2. Confirm the two choices in the CodeRabbit fixes (see
-   "Blockers / Open Questions"); both can still be changed by a
-   new commit on main.
-3. Done on 2026-11-22: a restore from the Litestream backup was
-   rehearsed (see "Backup restore" at the end of this file).
-4. Keep the `planning-agent` token for the MCP server (M6);
-   nothing reads it until then.
-5. M2: review and merge PR #8 (merging starts the gated deploy
+1. M2: review and merge PR #8 (merging starts the gated deploy
    job, though nothing in the server changed), then sideload the
    APK and run the checklist on the phone, filling in the results
    table in the spike's README. When the three open M2 criteria
    pass, tick them and the second task, and mark M2 `done`.
-6. M4, the Todoist import. M3 builds on the M1 design in #2 to #6, which the
-   owner has not reviewed yet, and it changed M1 code: `WriteRunner`
-   is split into a core and the API's adapter (#10).
+2. M4, the Todoist import. M3 builds on the M1 design in #2 to #6,
+   which the owner has not reviewed yet, and it changed M1 code:
+   `WriteRunner` is split into a core and the API's adapter (#10).
+3. Look at PR #12 (verify skill), which no session has tracked.
+4. Confirm the two choices in the CodeRabbit fixes of 2026-11-15
+   (see "Blockers / Open Questions"); both can still be changed by
+   a new commit on main.
+5. Keep the `planning-agent` token for the MCP server (M6);
+   nothing reads it until then.
 
 ## Blockers / Open Questions
 - No blockers.
@@ -650,6 +619,13 @@ approve it.
 - The open questions in VISION.md are unchanged.
 
 ## Key Context
+- Cloud sessions are told to push only to their own `claude/...`
+  branch unless the owner says otherwise. On 2026-11-24 the owner
+  said to push review fixes to the pull request branches themselves.
+- Deploys wait for the owner's approval of `production`; Claude's
+  GitHub tools cannot approve them. A newer run on main cancels an
+  older pending one, so do not push to main while a deploy the
+  owner wants is waiting.
 - What was and was not checked:
   - For the web UI (PRs #9, #10 and #11), on 2026-11-16:
     - `dotnet build` (warnings are errors) and `dotnet test` pass:

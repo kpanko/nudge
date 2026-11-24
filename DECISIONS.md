@@ -1318,3 +1318,20 @@ the `http` launch profile shows a 500 on every page for the same
 antiforgery reason; use the `https` profile.
 
 ---
+
+## 2026-11-24 A repeated quick capture is answered by the page, not the replay middleware
+
+`WebUi.UseUiReplay` answers a form sent again with a used key from
+the form's own `then`, before the page runs, because Blazor would
+refuse a form the first write took off the page. The header's
+quick capture is never taken off: it is on every page that shows
+it, including an item or project page whose record has gone (see
+`QuickAdd.PageIsGone`). Replaying it from `then` sent the repeat of
+a capture from a gone page to not-found instead of the inbox. So
+the middleware now skips the `quick-capture` form; the page runs,
+the write runner carries the repeat out once under the same key and
+returns the same change, and the page picks the destination as it
+did the first time. Every other form is still replayed by the
+middleware.
+
+---
