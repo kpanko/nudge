@@ -1092,6 +1092,45 @@ Gradle) is needed, in CI too.
 
 ---
 
+## 2026-11-15 The Kotlin alarm spike uses platform APIs only
+
+**Context:** M2 has to show that a native Kotlin app delivers exact
+alarms on the owner's phone before the real app (M5) is built. The
+MAUI spike (PR #7) was closed without merging, so its behaviour,
+permissions and log format, recorded in its DECISIONS.md entries of
+this date, would otherwise apply to nothing on main.
+
+**Decision:** The spike is a standalone Gradle project in
+`spikes/AlarmSpikeKotlin`, not part of `Nudge.sln`; the server's
+build, tests and CI never see it. It uses only the Android platform
+APIs (`Activity`, `Notification.Builder`,
+`AlarmManager.setAlarmClock`, views built in code): no Compose, no
+AndroidX, no other libraries, so what it shows is about Android
+itself. It is built with Gradle 8.11.1, the Android Gradle Plugin
+8.7.3 and Kotlin 2.0.21; the Gradle wrapper is committed with the
+distribution's SHA-256 pinned. It keeps the MAUI spike's application
+id `nudge.spike.alarms`, and carries over its behaviour, permissions
+(`USE_EXACT_ALARM`, `SCHEDULE_EXACT_ALARM` up to API 32, boot and
+notification permissions), constants and log format, which this
+entry now records for main. The event log falls back to the app's
+private storage while shared storage is not mounted, moves those
+lines over later, and never throws, so logging cannot crash a
+receiver.
+
+**Alternatives considered:** Compose and AndroidX, as M5 will use
+(closer to the real app, but more start-up code and dependencies
+between the alarm and the measurement). Building the spike inside
+the future app's project (nothing to reuse yet; it would tie the
+throwaway code to M5's structure).
+
+**Consequences:** M5 will add Compose and AndroidX, so its start-up
+can be slower than the spike's; the spike's cold-start numbers are a
+lower bound. The spike needs the Android SDK and a JDK 17 to build,
+outside CI. Installing it over the MAUI build needs an uninstall
+first, as the two are signed with different keys.
+
+---
+
 ## 2026-11-16 The web UI is static server-rendered Blazor in Nudge.Web
 
 **Context:** M3 adds a web UI to the same app. Its writes must go
