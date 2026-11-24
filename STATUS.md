@@ -1,6 +1,6 @@
 # Status
 
-**Last updated:** 2026-11-23
+**Last updated:** 2026-11-24
 **Current milestone:** M2 Alarm spike (M3 Web UI is `done`)
 
 ## In Progress
@@ -79,26 +79,41 @@
   merge to `main` starts a deploy that waits for approval; approve
   only the newest.
   Checked: build and all tests passed locally on each branch,
-  browser tests included (908 tests on #18). CI passed on all six.
+  browser tests included (910 tests on #18 after the fixes below).
+  CI passed on all six before the fixes; see the PR pages for CI on
+  the new commits.
   Not checked: a real phone (Chromium emulation only), Safari,
   Firefox, a screen reader, or real Google's account picker. After
   deploying, sign out, choose "Sign in again", and confirm Google
   offers a choice of account.
-  Open review comments: CodeRabbit left five minor threads, none
-  fixed, answered or resolved. CodeRabbit reviewed #13, #14 and
-  #16; it has no review on #15, #17 or #18.
-  - #13, #14 and #16 (one finding, reported three times): the phone
-    view of the changes table hides its column headers from screen
-    readers.
-  - #14: long notice text that scrolls cannot be reached by
-    keyboard in Safari.
-  - #14: at 320 px, a long notice with Undo wrapped can cover up to
-    37 px of a control that has keyboard focus.
-  These were not reproduced. A fix on #13 or #14 has to be carried
-  through the later branches.
-  The owner has not yet decided whether to fix these before merging.
+  Review comments, fixed on 2026-11-24 (the owner asked for the fixes
+  to go on the pull request branches themselves): all seven
+  CodeRabbit threads, on #13, #14, #16 and #17, are fixed. Each fix is
+  on the branch where its finding started, and was merged forward
+  (merge commits, no rebase or force-push) through every later
+  branch. Each was reproduced by a test that failed before the fix:
+  - #13 (91bd5bd): the phone changes table keeps its column names
+    for screen readers (visually hidden header row and explicit
+    table roles), and project chip links are 44 px high on phones
+    (they were 21.5 px).
+  - #14 (04e9795): the scroll padding covers the tallest notice (it
+    was 240 px against a 277 px notice at 320 px with a 20 px root
+    font), and the notice text takes keyboard focus for Safari.
+    This adds one tab stop before Undo.
+  - #17 (be63d43): a capture sent twice from a deleted page now
+    lands on the inbox with Undo both times; the replay middleware
+    leaves the capture form to the page.
+  Merge conflicts on the way: `PhoneLayoutTests.cs` on #15 and
+  `Changes.razor` on #16; both kept both sides.
+  The threads are not answered or resolved on GitHub. CodeRabbit
+  has no review on #15 or #18. The descriptions of #13, #14 and #17
+  say what was fixed; #15, #16 and #18 were not edited.
   The deploy job for 5608b0d, a STATUS.md-only commit, is waiting
   for approval and need not be approved.
+- PR #12, "Add a verify skill that drives the real app", is open
+  and was not tracked here before 2026-11-24. Not looked at in that
+  session.
+  https://github.com/kpanko/nudge/pull/12
 - Before the Kotlin spike: on 2026-11-15
   the owner decided the Android app will be Kotlin, offline-first
   (see DECISIONS.md under that date), so the spike was
@@ -254,9 +269,9 @@ approve it.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Web UI PRs #13 to #18: decide whether to fix the open CodeRabbit
-   comments first, then merge and approve the newest deploy, and
-   try the result on the phone (see "In Progress").
+1. Web UI PRs #13 to #18: review comments are fixed. Merge #18
+   with a merge commit (or all six in order), approve the newest
+   deploy, and try the result on the phone (see "In Progress").
 2. Confirm the two choices in the CodeRabbit fixes (see
    "Blockers / Open Questions"); both can still be changed by a
    new commit on main.
