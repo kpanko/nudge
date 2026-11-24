@@ -16,7 +16,8 @@
 </ActionForm>
 
 @code {
-    private const string FormName = "quick-capture";
+    /// <summary>The capture form's name (its <c>_handler</c>).</summary>
+    public const string FormName = "quick-capture";
 
     private static readonly object GoneKey = new();
 

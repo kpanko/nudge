@@ -132,8 +132,8 @@ public sealed class QuickAddTests : IAsyncLifetime
         Assert.True(after.HasForm("undo-notice"));
     }
 
-    // The repeat goes by the form's own target, the page now gone, so
-    // it lands on not-found; what matters is that it writes nothing.
+    // The repeat writes nothing and lands where the first did: the
+    // inbox, with the same change to undo.
     [Fact]
     public async Task SentTwiceFromAStaleMissingItemPage_IsCarriedOutOnce()
     {
@@ -143,11 +143,16 @@ public sealed class QuickAddTests : IAsyncLifetime
         fields["title"] = "Late thought";
         await _host.ApiAsync("DELETE", $"/api/items/{id}", null);
 
-        await page.SendAsync(fields);
+        var first = await page.SendAsync(fields);
         var changes = _host.Count("Changes");
         var again = await page.SendAsync(fields);
 
         Assert.Equal(HttpStatusCode.Redirect, again.StatusCode);
+        Assert.StartsWith(
+            "/inbox?change=",
+            PathOf(first),
+            StringComparison.Ordinal);
+        Assert.Equal(PathOf(first), PathOf(again));
         Assert.Equal(changes, _host.Count("Changes"));
         Assert.Equal(["Late thought"], await InboxAsync());
     }
