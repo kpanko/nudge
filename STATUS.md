@@ -79,17 +79,26 @@
   merge to `main` starts a deploy that waits for approval; approve
   only the newest.
   Checked: build and all tests passed locally on each branch,
-  browser tests included (908 tests on #18). CI passed on #13 to
-  #17 and was still running on #18 when this was written.
+  browser tests included (908 tests on #18). CI passed on all six.
   Not checked: a real phone (Chromium emulation only), Safari,
   Firefox, a screen reader, or real Google's account picker. After
   deploying, sign out, choose "Sign in again", and confirm Google
   offers a choice of account.
-  Open review comment: CodeRabbit on #13 says the phone view of the
-  changes table hides its column headers from screen readers. It
-  is valid and minor, and is not fixed. A fix on #13 has to be
-  carried through the five later branches. CodeRabbit skipped #14
-  to #18.
+  Open review comments: CodeRabbit left five minor threads, none
+  fixed, answered or resolved. CodeRabbit reviewed #13, #14 and
+  #16; it has no review on #15, #17 or #18.
+  - #13, #14 and #16 (one finding, reported three times): the phone
+    view of the changes table hides its column headers from screen
+    readers.
+  - #14: long notice text that scrolls cannot be reached by
+    keyboard in Safari.
+  - #14: at 320 px, a long notice with Undo wrapped can cover up to
+    37 px of a control that has keyboard focus.
+  These were not reproduced. A fix on #13 or #14 has to be carried
+  through the later branches.
+  The owner has not yet decided whether to fix these before merging.
+  The deploy job for 5608b0d, a STATUS.md-only commit, is waiting
+  for approval and need not be approved.
 - Before the Kotlin spike: on 2026-11-15
   the owner decided the Android app will be Kotlin, offline-first
   (see DECISIONS.md under that date), so the spike was
@@ -245,19 +254,22 @@ approve it.
   Tigris bucket `nudge-gtd-backup`.
 
 ## Next Up
-1. Confirm the two choices in the CodeRabbit fixes (see
+1. Web UI PRs #13 to #18: decide whether to fix the open CodeRabbit
+   comments first, then merge and approve the newest deploy, and
+   try the result on the phone (see "In Progress").
+2. Confirm the two choices in the CodeRabbit fixes (see
    "Blockers / Open Questions"); both can still be changed by a
    new commit on main.
-2. Done on 2026-11-22: a restore from the Litestream backup was
+3. Done on 2026-11-22: a restore from the Litestream backup was
    rehearsed (see "Backup restore" at the end of this file).
-3. Keep the `planning-agent` token for the MCP server (M6);
+4. Keep the `planning-agent` token for the MCP server (M6);
    nothing reads it until then.
-4. M2: review and merge PR #8 (merging starts the gated deploy
+5. M2: review and merge PR #8 (merging starts the gated deploy
    job, though nothing in the server changed), then sideload the
    APK and run the checklist on the phone, filling in the results
    table in the spike's README. When the three open M2 criteria
    pass, tick them and the second task, and mark M2 `done`.
-5. M4, the Todoist import. M3 builds on the M1 design in #2 to #6, which the
+6. M4, the Todoist import. M3 builds on the M1 design in #2 to #6, which the
    owner has not reviewed yet, and it changed M1 code: `WriteRunner`
    is split into a core and the API's adapter (#10).
 
