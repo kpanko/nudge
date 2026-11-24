@@ -563,8 +563,13 @@ a.fact {
 }
 
 /* Keyboard focus must not land behind the bar. */
+/* Room for the notice at its tallest, so that a control scrolled to
+   by keyboard is not under it: the text at its cap, Undo wrapped
+   below it (the row gap and its height), the padding, the border,
+   the sticky offset, and space for the focus ring. */
 html:has(.notice) {
-    scroll-padding-bottom: calc(30vh + 2 * var(--space-5));
+    scroll-padding-bottom: calc(
+        30vh + var(--control-height) + 5 * var(--space-2) + 2px);
 }
 
 .hint,
@@ -691,7 +696,8 @@ html:has(.notice) {
 
     .item > a,
     .projects > li > a,
-    .group > p > a {
+    .group > p > a,
+    .facts > a.fact {
         display: inline-flex;
         align-items: center;
         min-height: var(--control-height);
@@ -709,8 +715,16 @@ html:has(.notice) {
         display: block;
     }
 
+    /* Out of sight but still read out: each cell keeps its column
+       name. The roles in Changes.razor keep the table a table for
+       assistive technology once it is laid out as blocks. */
     .changes thead {
-        display: none;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
     }
 
     .changes tr {
