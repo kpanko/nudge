@@ -50,7 +50,7 @@ public sealed class PhoneLayoutTests
           }
 
           const controls = document.querySelectorAll(
-            'button, select, textarea, nav.views a,'
+            'button, select, textarea, nav.views a, .facts > a.fact,'
             + ' input:not([type=hidden])');
           for (const control of controls) {
             if (!control.getClientRects().length) {
@@ -138,6 +138,48 @@ public sealed class PhoneLayoutTests
         }
 
         await Expect(page.Locator(".notice")).ToBeVisibleAsync();
+    }
+
+    // The phone layout shows each change as a card, without the
+    // header row; a screen reader must still hear each column's name.
+    [PlaywrightFact]
+    public async Task Changes_KeepTheirColumnNames_ForAssistiveTechnology()
+    {
+        await using var host = await BrowserHost.StartAsync();
+        await SeedAsync(host);
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(
+            new BrowserTypeLaunchOptions { Headless = true });
+        await using var context = await browser.NewContextAsync(
+            new BrowserNewContextOptions
+            {
+                BaseURL = host.BaseAddress,
+                IgnoreHTTPSErrors = true,
+                ViewportSize = new ViewportSize { Width = 375, Height = 812 },
+                IsMobile = true,
+                HasTouch = true,
+            });
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/changes");
+
+        var table = page.GetByRole(AriaRole.Table);
+        await Expect(table).ToHaveCountAsync(1);
+        foreach (var name in new[] { "When", "What", "By" })
+        {
+            await Expect(
+                    table.GetByRole(
+                        AriaRole.Columnheader,
+                        new() { Name = name, Exact = true }))
+                .ToHaveCountAsync(1);
+        }
+
+        await Expect(table.GetByRole(AriaRole.Cell).First)
+            .ToBeVisibleAsync();
+        Assert.True(
+            await page.EvaluateAsync<bool>(
+                "() => document.querySelector('.changes thead')"
+                + ".getBoundingClientRect().height <= 1"),
+            "the header row is in sight");
     }
 
     private static async Task ExpectFitsAsync(
