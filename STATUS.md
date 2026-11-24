@@ -80,8 +80,7 @@
   only the newest.
   Checked: build and all tests passed locally on each branch,
   browser tests included (910 tests on #18 after the fixes below).
-  CI passed on all six before the fixes; see the PR pages for CI on
-  the new commits.
+  CI passed on all six, also on the new commits of 2026-11-24.
   Not checked: a real phone (Chromium emulation only), Safari,
   Firefox, a screen reader, or real Google's account picker. After
   deploying, sign out, choose "Sign in again", and confirm Google
