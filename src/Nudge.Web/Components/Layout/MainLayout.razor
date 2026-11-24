@@ -1,11 +1,13 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
 
 <header class="top">
     <a class="brand" href="/">Nudge</a>
     @if (SignedIn)
     {
         <nav class="views">
-            <NavLink href="/inbox">Inbox</NavLink>
+            <NavLink href="/inbox" class="@InboxClass">Inbox</NavLink>
             <NavLink href="/next">Next</NavLink>
             <NavLink href="/projects" Match="NavLinkMatch.Prefix">
                 Projects
@@ -16,6 +18,10 @@
             <NavLink href="/missed">Missed</NavLink>
             <NavLink href="/changes">Changes</NavLink>
         </nav>
+        @if (ShowQuickAdd)
+        {
+            <QuickAdd />
+        }
         <form class="sign-out"
               method="post"
               action="@OwnerAuthentication.SignOutPath">
@@ -26,11 +32,12 @@
 </header>
 
 <main>
+    @Body
+    @* Last, so that its sticky bar comes to rest below the last row. *@
     @if (SignedIn)
     {
         <Notice />
     }
-    @Body
 </main>
 
 @code {
@@ -40,4 +47,52 @@
     private bool SignedIn =>
         HttpContext is not null
         && OwnerAuthentication.IsOwner(HttpContext.User);
+
+    /// <summary>Everywhere the owner can post back to the page, but
+    /// the inbox, which has its own capture. A form on the not-found
+    /// page would post to an address with no endpoint, and be refused.
+    /// </summary>
+    private bool ShowQuickAdd
+    {
+        get
+        {
+            var metadata = HttpContext?.GetEndpoint()?.Metadata;
+            var page = metadata?
+                .GetMetadata<Microsoft.AspNetCore.Components.Endpoints
+                    .ComponentTypeMetadata>()?.Type;
+            return SignedIn
+                && page is not null
+                && page != typeof(Pages.Inbox)
+                && page != typeof(Pages.NotFound)
+                && metadata!.GetMetadata<IAllowAnonymous>() is null
+                && !PageGone;
+        }
+    }
+
+    /// <summary>The page's item or project does not exist, so the
+    /// not-found page is showing at this page's address.</summary>
+    private bool PageGone { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Navigation.OnNotFound += OnNotFound;
+    }
+
+    private void OnNotFound(
+        object? sender,
+        NotFoundEventArgs e)
+    {
+        PageGone = true;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Navigation.OnNotFound -= OnNotFound;
+    }
+
+    /// <summary>The site root shows the inbox too, so its link is
+    /// marked there as well.</summary>
+    private string? InboxClass =>
+        HttpContext?.Request.Path.Value == "/" ? "active" : null;
 }

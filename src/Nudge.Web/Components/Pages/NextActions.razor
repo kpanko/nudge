@@ -6,7 +6,8 @@
 
 <h1>Next actions</h1>
 <p class="hint">
-    By context. Items deferred past today (@Words.Date(Queries.Today()))
+    By context. Items deferred past today
+    (@Plain.Absolute(Queries.Today(), Queries.Today()))
     are left out until their day.
 </p>
 
@@ -28,7 +29,9 @@
     </section>
 }
 
-<ActionForm Name="new-context" Action="CreateContextAsync" Class="inline">
+<ActionForm Name="new-context"
+            Action="CreateContextAsync"
+            Class="field-row">
     <label>
         New context
         <input type="text" name="name" required autocomplete="off" />

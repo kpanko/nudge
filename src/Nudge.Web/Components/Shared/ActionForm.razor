@@ -62,7 +62,8 @@
             return;
         }
 
-        Navigation.NavigateTo(WebWrites.Target(Target, result.ChangeId));
+        Navigation.NavigateTo(
+            WebWrites.Target(result.Then ?? Target, result.ChangeId));
     }
 
     /// <summary>Where to go after the write: Then, or this page,

@@ -192,7 +192,12 @@ public static class WebUi
         }
 
         var form = await request.ReadFormAsync(context.RequestAborted);
-        if (WebWrites.RecordKey(form["key"]) is not { } key)
+        // The capture is on every page that has it, even one whose
+        // item is gone (see QuickAdd.PageIsGone), so the page itself
+        // answers its repeat: the runner carries it out once, and the
+        // page knows to go to the inbox when it is gone.
+        if (form["_handler"] == Shared.QuickAdd.FormName
+            || WebWrites.RecordKey(form["key"]) is not { } key)
         {
             return null;
         }

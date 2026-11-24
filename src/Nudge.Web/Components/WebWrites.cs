@@ -10,6 +10,10 @@ public sealed record WebWriteResult(
     long? ChangeId,
     string? Error)
 {
+    /// <summary>Where to go instead of the form's own target, when
+    /// the write found that page gone.</summary>
+    public string? Then { get; init; }
+
     public static WebWriteResult Invalid(string error)
     {
         return new WebWriteResult(null, error);
