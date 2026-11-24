@@ -71,6 +71,11 @@
   reused. Everything further down in this file about the MAUI
   spike describes that closed branch.
   https://github.com/kpanko/nudge/pull/7
+- Capture date words: on branch
+  `claude/recurring-task-due-date-blank-1d7aa7`, in a pull request
+  awaiting the owner's review. "every friday eat a snack" now gets
+  the title "eat a snack", a due date and a repeat. See DECISIONS.md,
+  2026-11-24. Not checked on the deployed app.
 
 ### The deploy
 The merge to main started a deploy that waits for approval of the

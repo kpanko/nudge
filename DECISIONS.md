@@ -1335,3 +1335,26 @@ did the first time. Every other form is still replayed by the
 middleware.
 
 ---
+
+## 2026-11-24 Capture reads basic date words at the start of the line
+
+**Context:** "every friday eat a snack" was saved whole as a title,
+with no due date. VISION.md allows natural-language dates only as
+far as the basics.
+
+**Decision:** The owner chose repeats and one-off dates. A capture
+in the web UI reads, at the start of the line and only with a title
+after it: every day, weekday, week, month or year; every and a
+weekday name; every week or 2 weeks, optionally on a weekday; every
+3 or 6 months; today, tomorrow and a weekday name. The words leave
+the title. Repeats are on a fixed schedule. A weekday means the next
+one, today included. The API takes titles literally, as before.
+
+**Alternatives considered:** Repeats only (fewer misread titles).
+Matching anywhere in the line (many more misread titles).
+
+**Consequences:** A title that really starts with such a word, like
+"Friday night dinner plans", gets a due date and loses the word.
+Undo in the notice takes the capture back.
+
+---

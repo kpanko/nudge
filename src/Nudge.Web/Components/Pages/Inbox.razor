@@ -105,7 +105,11 @@ else
         IFormCollection form,
         string key)
     {
-        return Writes.CaptureAsync(key, form["title"].ToString().Trim());
+        return Writes.CaptureAsync(
+            key,
+            CapturePhrase.Read(
+                form["title"].ToString().Trim(),
+                Queries.Today()));
     }
 
     private async Task<WebWriteResult> TryProcessAsync(
